@@ -1,0 +1,660 @@
+# =============================================================================
+# Acme Corporation — Widget Bars (Example BeetBook)
+#
+# A healthy candy bar CPG. Sold as single bars and boxes of 4 bars across:
+#   - Fakemart (large grocery, via BigFoods distributor)
+#   - Indie retail (via Faire marketplace, case-level B2B)
+#   - Amazon (FBA)
+#   - Shopify DTC (one-time + subscribers)
+#
+# Plan horizon: 24 months. Story:
+#   M1-2  : setup, first production run, payroll on
+#   M3-5  : DTC + Amazon launch
+#   M6-8  : Faire indie ramps
+#   M9-24 : Fakemart launches and ramps doors to profitability
+#
+# This file demos ~85% of beetbook features. Use it as a reference template.
+# Run with `npm run example` (see package.json).
+# =============================================================================
+
+plan:
+  id: acme
+  name: Acme Corporation — Widget Bars
+  currency: USD
+  start_month: 2026-06
+  months: 24
+  opening_cash: 300000
+
+# -----------------------------------------------------------------------------
+# Constants: shared values referenced via `ref: constants.<id>.value` or used
+# inside `expr:` strings (where the bare id is available as a variable).
+# -----------------------------------------------------------------------------
+constants:
+  - { id: retail_weeks_per_month, name: Retail calendar factor, value: 4.33 }
+  - { id: bar_msrp, name: Bar MSRP at shelf, value: 2.50 }
+  - { id: fakemart_doors_launch, name: Fakemart doors at launch, value: 600 }
+  - { id: fakemart_doors_end, name: Fakemart doors at end-of-ramp, value: 2400 }
+  - { id: fakemart_velocity_start, name: Fakemart bars/store/week at launch, value: 6 }
+  - { id: fakemart_velocity_end, name: Fakemart bars/store/week mature, value: 28 }
+  - { id: indie_collection_lag, name: Faire collection lag days, value: 30 }
+  - { id: retail_collection_lag, name: Big retail collection lag days, value: 45 }
+  - { id: dtc_collection_lag, name: Shopify collection lag days, value: 3 }
+  - { id: amazon_collection_lag, name: Amazon collection lag days, value: 14 }
+  - { id: shopify_merchant_fee_pct, name: Shopify merchant fee rate, value: 0.029 }
+  - { id: faire_marketplace_fee_pct, name: Faire fee, value: 0.15 }
+  - { id: amazon_referral_pct, name: Amazon referral fee (grocery), value: 0.15 }
+  - { id: amazon_fba_per_unit, name: Amazon FBA per bar (small + light), value: 0.40 }
+  - { id: amazon_storage_per_unit_month, name: Amazon FBA storage per bar / mo, value: 0.005 }
+  - { id: dtc_returns_rate, name: DTC returns rate, value: 0.02 }
+  - { id: production_deposit_pct, name: Co-packer deposit %, value: 0.5 }
+  - { id: production_balance_lag, name: Co-packer balance lag days, value: 30 }
+  - { id: prod_safety_factor, name: Demand-aware production safety multiplier, value: 1.15 }
+  - { id: payroll_tax_pct, name: Payroll tax rate, value: 0.12 }
+  - { id: payroll_fee_pct, name: Payroll provider fee rate, value: 0.04 }
+  - { id: founder_raise_pct, name: Founder annual raise rate, value: 0.05 }
+  - { id: demo_cost, name: Cost per in-store demo, value: 150 }
+  - { id: demos_per_month, name: In-store demos / mo after retail launch, value: 6 }
+
+# -----------------------------------------------------------------------------
+# Products: one SKU here. Bars are the base unit; cases hold 48 bars (12 boxes
+# of 4 bars). Bundles describe DTC pack sizes shipped from the 3PL.
+# -----------------------------------------------------------------------------
+products:
+  - id: widget_bar
+    name: Widget Bar
+    category: snack
+    unit: bar
+    unit_basis:
+      - { id: bar, label: Bar, multiplier: 1 }
+      - { id: box4, label: Box of 4, multiplier: 4 }
+      - { id: case, label: Case of 48, multiplier: 48 }
+    units_per_case: 48 # 48 bars / case = 12 retail 4-packs
+    cogs:
+      recipe: widget_bar_recipe
+      packaging: widget_bar_pkg
+      processing: copack_widget
+    inventory:
+      beginning_finished_goods_units: 4800 # 100 cases on hand at plan start
+      beginning_finished_goods_unit_cost: 0 # opening inventory paid pre-plan
+      target_months_on_hand: 1.5
+    logistics:
+      cases_per_pallet: 100
+      temp_class: dry
+      weight_per_case_lbs: 14
+    bundles:
+      # Shopify bundles, in bars. Sub prices = 10% off one-time.
+      - {
+          id: trial_4,
+          name: Trial 4-pack,
+          units: 4,
+          pick_units: 1,
+          price: 9.99,
+          shipping_cost: 5.00,
+          shipping_rev: 5.00,
+        }
+      - {
+          id: box_12_ot,
+          name: Box of 12 (one-time),
+          units: 12,
+          pick_units: 1,
+          price: 24.99,
+          shipping_cost: 7.00,
+          shipping_rev: 7.00,
+        }
+      - {
+          id: box_12_sub,
+          name: Box of 12 (subscribe),
+          units: 12,
+          pick_units: 1,
+          price: 22.49,
+          shipping_cost: 7.00,
+          shipping_rev: 7.00,
+        }
+      - {
+          id: box_24_ot,
+          name: Box of 24 (one-time),
+          units: 24,
+          pick_units: 1,
+          price: 44.99,
+          shipping_cost: 9.00,
+          shipping_rev: 0,
+        }
+      - {
+          id: box_24_sub,
+          name: Box of 24 (subscribe),
+          units: 24,
+          pick_units: 1,
+          price: 40.49,
+          shipping_cost: 9.00,
+          shipping_rev: 0,
+        }
+
+# -----------------------------------------------------------------------------
+# Recipe + ingredients drive COGS at the bar level via CostEvaluator.
+# -----------------------------------------------------------------------------
+ingredients:
+  - {
+      id: rolled_oats,
+      name: Rolled oats,
+      purchase_size: 50,
+      purchase_unit: lb,
+      purchase_cost: 42.00,
+      supplier: oat_co,
+      lead_days: 14,
+      payment_lag_days: 30,
+    }
+  - {
+      id: almond_butter,
+      name: Almond butter,
+      purchase_size: 25,
+      purchase_unit: lb,
+      purchase_cost: 215.00,
+      supplier: nut_co,
+      lead_days: 21,
+      payment_lag_days: 45,
+    }
+  - {
+      id: honey,
+      name: Honey,
+      purchase_size: 30,
+      purchase_unit: lb,
+      purchase_cost: 120.00,
+      supplier: bee_co,
+      lead_days: 14,
+      payment_lag_days: 30,
+    }
+  - {
+      id: dark_chocolate,
+      name: Dark chocolate,
+      purchase_size: 25,
+      purchase_unit: lb,
+      purchase_cost: 175.00,
+      supplier: choco_co,
+      lead_days: 21,
+      payment_lag_days: 30,
+    }
+  - {
+      id: sea_salt,
+      name: Sea salt,
+      purchase_size: 50,
+      purchase_unit: lb,
+      purchase_cost: 30.00,
+      supplier: salt_co,
+      lead_days: 14,
+      payment_lag_days: 30,
+    }
+
+recipes:
+  - id: widget_bar_recipe
+    name: Widget Bar Recipe
+    output_product: widget_bar
+    yield_units: 1 # one recipe row = one bar
+    ingredients:
+      - { ingredient: rolled_oats, amount: 0.05, unit: lb, waste_pct: 0.02 }
+      - { ingredient: almond_butter, amount: 0.018, unit: lb, waste_pct: 0.02 }
+      - { ingredient: honey, amount: 0.012, unit: lb, waste_pct: 0.02 }
+      - { ingredient: dark_chocolate, amount: 0.015, unit: lb, waste_pct: 0.03 }
+      - { ingredient: sea_salt, amount: 0.002, unit: lb, waste_pct: 0.01 }
+
+# -----------------------------------------------------------------------------
+# Packaging components (per bar / per box / per case). units_per_quote
+# converts a component cost into per-bar cost.
+# -----------------------------------------------------------------------------
+packaging:
+  - id: widget_bar_pkg
+    name: Bar wrapper + 4-pack box + case
+    components:
+      - id: wrapper
+        name: Single-bar flow wrapper
+        cost:
+          tiers:
+            - { min_run_units: 30000, value: 0.058 }
+            - { min_run_units: 100000, value: 0.048 }
+            - { min_run_units: 300000, value: 0.042 }
+        units_per_quote: 1
+      - id: box4
+        name: 4-pack retail box (printed)
+        cost:
+          tiers:
+            - { min_run_units: 25000, value: 0.45 }
+            - { min_run_units: 75000, value: 0.34 }
+            - { min_run_units: 200000, value: 0.27 }
+        units_per_quote: 4
+        pack_size: 4
+      - id: shipper
+        name: Inner shipping case (12 boxes / 48 bars)
+        cost: 0.95
+        units_per_quote: 48
+        pack_size: 48
+      - id: pallet_prep
+        name: Pallet wrap + labels
+        cost: 0.04
+        units_per_quote: 48
+      - id: pkg_inbound_freight
+        name: Inbound freight (packaging vendor → copack)
+        cost: 0.18
+        units_per_quote: 48
+
+# -----------------------------------------------------------------------------
+# Processing (the co-packer tolling cost).
+# -----------------------------------------------------------------------------
+processing:
+  - id: copack_widget
+    name: Acme Co-Pack Widget Tolling
+    vendor: acme_copack
+    setup_cost: 1500
+    minimum_run_cost: 6000
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 30000, value: 0.085 }
+        - { min_run_units: 100000, value: 0.072 }
+        - { min_run_units: 300000, value: 0.061 }
+    yield_pct: 0.98
+
+# -----------------------------------------------------------------------------
+# Distributors: deductions taken before money lands in our bank.
+# -----------------------------------------------------------------------------
+distributors:
+  - id: bigfoods
+    name: BigFoods Distribution
+    margin_pct: 0.22
+    spoils_allowance_pct: 0.01
+    freight_allowance_pct: 0.015
+    cash_discount_pct: 0.02
+    payment_lag_days: 60
+
+# -----------------------------------------------------------------------------
+# Logistics: 3PL rate card + outbound freight tiers.
+# -----------------------------------------------------------------------------
+logistics:
+  dtc_pick_fee: 2.30
+  dtc_pick_addl_unit: 1.02
+  dtc_third_party_label_fee: 0
+  dtc_avg_order_value: 28
+  b2b_per_store_per_order: 2.95
+  b2b_per_carton: 6.25 # case-mode (Faire)
+  b2b_per_pallet: 11.25 # pallet-mode (Fakemart via UNFI pickup)
+  b2b_pallet_wrap: 18.50
+  pallet_in_fee: 11.25
+  pallet_storage_monthly: 22.50
+  returns_first_unit: 2.15
+  returns_addl_unit: 0.95
+  default_returns_rate: 0
+  avg_b2b_order_cases: 60 # large retail PO default
+  inbound_truckload_cost: 1400
+  pallets_per_truckload: 26
+  outbound_freight:
+    dry:
+      - { pallets_per_order: 1, cost_per_pallet: 314.11 }
+      - { pallets_per_order: 3, cost_per_pallet: 125.00 }
+      - { pallets_per_order: 6, cost_per_pallet: 102.85 }
+      - { pallets_per_order: 12, cost_per_pallet: 56.62 }
+
+# -----------------------------------------------------------------------------
+# Taxes registry. International (VAT / duty / import broker) referenced by id
+# from sales lines or production runs. Here we capitalize an import duty +
+# broker fee into the first production run (almond butter ships in from
+# overseas). vat_uk is defined for reference but unused.
+# -----------------------------------------------------------------------------
+taxes:
+  - { id: us_food_duty, kind: duty, rate: 0.02 }
+  - { id: broker_us, kind: import_broker, rate: 0.0035, per_shipment: 175 }
+  - { id: vat_uk, kind: vat, rate: 0.20 }
+
+# -----------------------------------------------------------------------------
+# Sales lines: every "this product, in this channel, ramping like this".
+# Demonstrates four drivers: location_velocity, linear_ramp,
+# order_bundles, order_value.
+# -----------------------------------------------------------------------------
+sales_lines:
+  # ----- Fakemart (large retail, doors × velocity) -----
+  - id: bar_fakemart
+    name: Widget Bar — Fakemart
+    product: widget_bar
+    channel: fakemart
+    start_month: 2027-02 # M9 — launch after Faire / DTC traction
+    price_per_unit: 1.55 # FOB to BigFoods (pre-distributor take)
+    trade_plan: fakemart_y1
+    collection_lag_days: { ref: constants.retail_collection_lag.value }
+    units_sold:
+      driver: location_velocity
+      locations:
+        start: { ref: constants.fakemart_doors_launch.value }
+        end: { ref: constants.fakemart_doors_end.value }
+        ramp_months: 16
+        curve: linear
+      velocity:
+        start: { ref: constants.fakemart_velocity_start.value }
+        end: { ref: constants.fakemart_velocity_end.value }
+        ramp_months: 12
+        periods_per_month: { ref: constants.retail_weeks_per_month.value }
+
+  # ----- Indie retail (Faire, marketplace, case-level B2B) -----
+  - id: bar_indie
+    name: Widget Bar — Indie Retail (Faire)
+    product: widget_bar
+    channel: indie_retail
+    start_month: 2026-10
+    price_per_unit: 1.65
+    collection_lag_days: { ref: constants.indie_collection_lag.value }
+    merchant_fee_pct: { ref: constants.faire_marketplace_fee_pct.value }
+    avg_b2b_order_cases: 2 # small indie order
+    units_sold:
+      driver: location_velocity
+      locations: { start: 25, end: 1200, ramp_months: 20, curve: exponential }
+      velocity: { start: 6, end: 32, ramp_months: 18, periods_per_month: 4.33 }
+
+  # ----- Amazon (FBA, linear unit ramp) -----
+  - id: bar_amazon
+    name: Widget Bar — Amazon FBA
+    product: widget_bar
+    channel: amazon
+    start_month: 2026-08
+    price_per_unit: 2.50 # gross before Amazon fees
+    collection_lag_days: { ref: constants.amazon_collection_lag.value }
+    marketplace_fee_pct: { ref: constants.amazon_referral_pct.value }
+    fulfillment_per_unit: { ref: constants.amazon_fba_per_unit.value }
+    other_per_unit: { ref: constants.amazon_storage_per_unit_month.value }
+    units_sold:
+      driver: linear_ramp
+      start: 600
+      end: 15000
+      ramp_months: 24
+
+  # ----- Shopify Direct (DTC, bundle-driven orders) -----
+  - id: bar_shopify_direct
+    name: Widget Bar — Shopify Direct
+    product: widget_bar
+    channel: shopify_direct
+    start_month: 2026-08
+    collection_lag_days: { ref: constants.dtc_collection_lag.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders: { start: 80, end: 2500, ramp_months: 24, curve: linear }
+      bundle_mix:
+        - { bundle: trial_4, share: 0.15 }
+        - { bundle: box_12_ot, share: 0.45 }
+        - { bundle: box_24_ot, share: 0.40 }
+
+  # ----- Shopify Subs (DTC, order_value driver as an alt demo) -----
+  - id: bar_shopify_subs
+    name: Widget Bar — Shopify Subscribers
+    product: widget_bar
+    channel: shopify_subs
+    start_month: 2026-10
+    price_per_unit: 1.69
+    collection_lag_days: { ref: constants.dtc_collection_lag.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    units_sold:
+      driver: order_value
+      orders: { start: 30, end: 1800, ramp_months: 24, curve: exponential }
+      average_order_value: 36
+      price_per_unit: 1.69
+
+# -----------------------------------------------------------------------------
+# Trade plan: gross-to-net deductions, slotting, free-fill, TPRs, coupons, ISE.
+# Spread across Fakemart Y1 to demonstrate the full retailer cost stack.
+# -----------------------------------------------------------------------------
+trade_plans:
+  - id: fakemart_y1
+    name: Fakemart Year 1 (OI + MCB + scan + slotting + promo + ISE)
+    product: widget_bar
+    channel: fakemart
+    start_month: 2027-02
+    end_month: 2028-01
+    off_invoice_pct: 0.025
+    mcb_pct: 0.030
+    mcb_on_top_of_oi: true
+    scan_pct: 0.020
+    spoilage_pct: 0.010
+    coop_mdf_pct: 0.020
+    edlc_pct: 0
+    slotting_per_store: 25.00 # per net-new door
+    tail_pct: 0.18 # estimated trade after Y1 ends
+    free_fill:
+      # Lifetime free fill = 1 retail box (4 bars) per door, spread as doors open.
+      units: { expr: "fakemart_doors_end * 4" }
+      value_basis: cogs
+      per_new_location: true
+    events:
+      - {
+          id: tpr_summer,
+          kind: tpr,
+          start_month: 2027-07,
+          end_month: 2027-07,
+          weeks_in_month: 4,
+          discount_pct: 0.15,
+          unit_lift_mult: 1.5,
+          fee_per_event: 2000,
+        }
+      - {
+          id: tpr_back2school,
+          kind: tpr,
+          start_month: 2027-08,
+          end_month: 2027-08,
+          weeks_in_month: 2,
+          discount_pct: 0.15,
+          unit_lift_mult: 1.4,
+          fee_per_event: 1500,
+        }
+      - {
+          id: cat_sale_holiday,
+          kind: category_sale,
+          start_month: 2027-11,
+          end_month: 2027-11,
+          weeks_in_month: 1,
+          discount_pct: 0.25,
+          unit_lift_mult: 1.8,
+        }
+    coupons:
+      - {
+          id: launch_coupon,
+          kind: digital,
+          start_month: 2027-03,
+          end_month: 2027-05,
+          face_value: 1.00,
+          distribution_units_monthly: 50000,
+          redemption_pct: 0.04,
+          handling_fee_per_redemption: 0.10,
+        }
+    tiered_fees:
+      - { id: ise, kind: ise, rate: 0.04, gs_threshold_annual: 250000 }
+
+# -----------------------------------------------------------------------------
+# Marketing programs (cash). Mix of fixed, ramped, and category-tagged spend.
+# -----------------------------------------------------------------------------
+marketing_programs:
+  - id: shopify_ads
+    name: Shopify Paid (Meta + Google)
+    channel: shopify_direct
+    category: dtc_paid
+    working: true
+    amount: { expr: "min(5000, 1000 + 300 * month_index)" }
+  - id: shopify_subs_ads
+    name: Shopify Subs Acquisition
+    channel: shopify_subs
+    category: dtc_paid
+    working: true
+    amount: 1200
+    start_month: 2026-10
+  - id: email_program
+    name: Klaviyo Email Program
+    channel: shopify_subs
+    category: dtc_email
+    working: true
+    amount: 400
+  - id: amazon_ads
+    name: Amazon PPC
+    channel: amazon
+    category: marketplace_paid
+    working: true
+    amount: { expr: "min(4500, 1500 + 200 * program_month_index)" }
+    start_month: 2026-08
+  - id: fakemart_shopper
+    name: Fakemart Shopper Marketing
+    channel: fakemart
+    category: retail_shopper
+    working: true
+    amount: 1500
+    start_month: 2027-02
+  - id: demos_fakemart
+    name: In-store demos (Fakemart)
+    channel: fakemart
+    category: demos
+    working: true
+    amount: { expr: "demo_cost * demos_per_month" }
+    start_month: 2027-03
+  - id: fancy_food_show
+    name: Fancy Food Show booth
+    category: events
+    working: false # excluded from working media
+    amount: 12000
+    start_month: 2027-06
+    end_month: 2027-06
+  - id: pr_agency
+    name: PR Agency Retainer
+    category: agency
+    working: false
+    amount: 2000
+    start_month: 2026-09
+
+# -----------------------------------------------------------------------------
+# Payroll. Founders take a modest base + raise; line hires grow over time.
+# -----------------------------------------------------------------------------
+payroll:
+  - id: ceo_founder
+    person: Jane Smith
+    role: CEO / Founder
+    department: g_and_a
+    start_month: 2026-06
+    salary_annual: 60000
+    annual_raise_pct: { ref: constants.founder_raise_pct.value }
+    payroll_tax_pct: { ref: constants.payroll_tax_pct.value }
+    payroll_fee_pct: { ref: constants.payroll_fee_pct.value }
+    benefits_monthly: 350
+  - id: coo_founder
+    person: Marcus Lee
+    role: COO / Founder
+    department: operations
+    start_month: 2026-06
+    salary_annual: 60000
+    annual_raise_pct: { ref: constants.founder_raise_pct.value }
+    payroll_tax_pct: { ref: constants.payroll_tax_pct.value }
+    payroll_fee_pct: { ref: constants.payroll_fee_pct.value }
+    benefits_monthly: 350
+  - id: head_sales
+    person: Priya Patel
+    role: Head of Sales
+    department: selling
+    start_month: 2026-11
+    salary_annual: 85000
+    bonus_pct: 0.10
+    payroll_tax_pct: { ref: constants.payroll_tax_pct.value }
+    payroll_fee_pct: { ref: constants.payroll_fee_pct.value }
+  - id: brand_manager
+    person: Sam Rivera
+    role: Brand Marketing Manager
+    department: marketing
+    start_month: 2027-01
+    salary_annual: 72000
+    payroll_tax_pct: { ref: constants.payroll_tax_pct.value }
+    payroll_fee_pct: { ref: constants.payroll_fee_pct.value }
+  - id: ops_associate
+    person: TBD
+    role: Operations Associate
+    department: operations
+    start_month: 2027-10
+    salary_annual: 55000
+    payroll_tax_pct: { ref: constants.payroll_tax_pct.value }
+    payroll_fee_pct: { ref: constants.payroll_fee_pct.value }
+
+# -----------------------------------------------------------------------------
+# Operating expenses (always-on rent, tools, services).
+# -----------------------------------------------------------------------------
+expenses:
+  - { id: rent, name: Office / WeWork desks, department: g_and_a, account: facilities, amount: 1800 }
+  - {
+      id: accounting,
+      name: Bookkeeping (Pilot),
+      department: g_and_a,
+      account: professional_services.accounting,
+      amount: 650,
+    }
+  - {
+      id: legal_setup,
+      name: Legal — entity / contracts,
+      department: g_and_a,
+      account: professional_services.legal,
+      amount: 8000,
+      start_month: 2026-06,
+      end_month: 2026-08,
+    }
+  - { id: insurance, name: Product liability insurance, department: operations, account: insurance, amount: 480 }
+  - {
+      id: software,
+      name: SaaS stack (Shopify,
+      Slack,
+      etc.),
+      department: g_and_a,
+      account: office.software,
+      amount: 525,
+    }
+  - {
+      id: sps_commerce,
+      name: EDI (SPS Commerce),
+      department: operations,
+      account: edi,
+      amount: 595,
+      start_month: 2027-02,
+    }
+  - {
+      id: fp_3pl_fixed,
+      name: 3PL — fixed account fees,
+      department: operations,
+      account: fulfillment.fixed,
+      vendor: fulfillment_plus,
+      amount: 380,
+      start_month: 2026-07,
+    }
+  - {
+      id: copack_storage,
+      name: Co-packer raw-material storage,
+      department: operations,
+      account: warehouse.storage,
+      amount: 600,
+      start_month: 2026-07,
+    }
+  - {
+      id: travel,
+      name: Travel (trade shows + buyers),
+      department: selling,
+      account: travel,
+      amount: 1200,
+      start_month: 2026-11,
+    }
+
+# -----------------------------------------------------------------------------
+# Production runs: initial big PO, then bi-monthly recurring runs sized to
+# trailing demand × safety factor. The first run carries import duty + broker
+# (almond butter ships in from overseas).
+# -----------------------------------------------------------------------------
+production_runs:
+  - id: po1_widget
+    product: widget_bar
+    units: 60000
+    delivery_month: 2026-07
+    lead_months: 1
+    deposit_pct: { ref: constants.production_deposit_pct.value }
+    balance_lag_days: { ref: constants.production_balance_lag.value }
+    taxes: [us_food_duty, broker_us]
+
+  - id: widget_recurring
+    product: widget_bar
+    units: { expr: "max(50000, prod_safety_factor * suggested_production_units)" }
+    delivery_month: 2026-10
+    lead_months: 1
+    deposit_pct: { ref: constants.production_deposit_pct.value }
+    balance_lag_days: { ref: constants.production_balance_lag.value }
+    cadence: { every_months: 2, until: 2028-05 }

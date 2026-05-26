@@ -1,0 +1,2056 @@
+# Run `npm run beetbook:cli` to see reports via CLI.
+# Run `npm run beetbook` to start the web server and UI.
+# See ~/Code/beetbook to understand (or modify) the BeetBook engine source code.
+
+plan:
+  id: superoot
+  name: Superoot
+  currency: USD
+  # Using the @cashflow.xlsx model for the "prelude" to this model.
+  # Thus the starting point here shown is after we get an expected +$100K investment,
+  # after we pay all outstanding -$45K legal fees from recap, after we pay -$45K to Bactolac to release
+  # PO2 and initiate PO3, and after we receive about +$30K from invoice to UNFI for PO1.
+  start_month: 2026-07
+  months: 32
+  opening_cash: 90000
+
+products:
+  - id: my16
+    name: Ginger Mango Yuzu Caddy
+    unit: stick_pack
+    unit_basis:
+      - { id: stick, label: Stick, multiplier: 1 }
+      - { id: caddy, label: Caddy, multiplier: 16 }
+    units_per_case: 96
+    cogs:
+      processing: coman_my16
+      packaging: stick_pack_pkg
+    inventory:
+      beginning_finished_goods_units: 48000
+      beginning_finished_goods_unit_cost: 0
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 80
+      temp_class: dry
+      weight_per_case_lbs: 18
+    bundles:
+      # Shopify DTC bundles. Caddy = 16 sticks. Subscription bundles keep the
+      # original bundle price here and apply Subscribe & Save separately:
+      # 10% / 12% / 15% off for 1/2/3 caddies. Free shipping at $75+
+      # (3-caddy bundles qualify).
+      - {
+          id: trial_3,
+          name: Trial (3 sticks),
+          units: 3,
+          pick_units: 3,
+          price: 9.99,
+          shipping_cost: 4.08,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_1_ot,
+          name: 1 Caddy (one-time),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_1_sub,
+          name: 1 Caddy (subscribe),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_2_ot,
+          name: 2 Caddy (one-time),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_2_sub,
+          name: 2 Caddy (subscribe),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          subscription_discount_pct: 0.12,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_3_ot,
+          name: 3 Caddy (one-time),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_3_sub,
+          name: 3 Caddy (subscribe),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          subscription_discount_pct: 0.15,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+
+  - id: st16
+    name: Ginger Strawberry Caddy
+    unit: stick_pack
+    unit_basis:
+      - { id: stick, label: Stick, multiplier: 1 }
+      - { id: caddy, label: Caddy, multiplier: 16 }
+    units_per_case: 96
+    cogs:
+      processing: coman_st16
+      packaging: stick_pack_pkg
+    inventory:
+      beginning_finished_goods_units: 48000
+      beginning_finished_goods_unit_cost: 0
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 80
+      temp_class: dry
+      weight_per_case_lbs: 18
+    bundles:
+      # Shopify DTC bundles. Caddy = 16 sticks. Subscription bundles keep the
+      # original bundle price here and apply Subscribe & Save separately:
+      # 10% / 12% / 15% off for 1/2/3 caddies. Free shipping at $75+
+      # (3-caddy bundles qualify).
+      - {
+          id: trial_3,
+          name: Trial (3 sticks),
+          units: 3,
+          pick_units: 3,
+          price: 9.99,
+          shipping_cost: 4.08,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_1_ot,
+          name: 1 Caddy (one-time),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_1_sub,
+          name: 1 Caddy (subscribe),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_2_ot,
+          name: 2 Caddy (one-time),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_2_sub,
+          name: 2 Caddy (subscribe),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          subscription_discount_pct: 0.12,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_3_ot,
+          name: 3 Caddy (one-time),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_3_sub,
+          name: 3 Caddy (subscribe),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          subscription_discount_pct: 0.15,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+
+  - id: or16
+    name: Ginger Orange Caddy
+    unit: stick_pack
+    unit_basis:
+      - { id: stick, label: Stick, multiplier: 1 }
+      - { id: caddy, label: Caddy, multiplier: 16 }
+    units_per_case: 96
+    cogs:
+      processing: coman_or16
+      packaging: stick_pack_pkg
+    inventory:
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 80
+      temp_class: dry
+      weight_per_case_lbs: 18
+    bundles:
+      # Shopify DTC bundles. Caddy = 16 sticks. Subscription bundles keep the
+      # original bundle price here and apply Subscribe & Save separately:
+      # 10% / 12% / 15% off for 1/2/3 caddies. Free shipping at $75+
+      # (3-caddy bundles qualify).
+      - {
+          id: trial_3,
+          name: Trial (3 sticks),
+          units: 3,
+          pick_units: 3,
+          price: 9.99,
+          shipping_cost: 4.08,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_1_ot,
+          name: 1 Caddy (one-time),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_1_sub,
+          name: 1 Caddy (subscribe),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_2_ot,
+          name: 2 Caddy (one-time),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_2_sub,
+          name: 2 Caddy (subscribe),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          subscription_discount_pct: 0.12,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_3_ot,
+          name: 3 Caddy (one-time),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_3_sub,
+          name: 3 Caddy (subscribe),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          subscription_discount_pct: 0.15,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+
+  - id: pe16
+    name: Ginger Peach Caddy
+    unit: stick_pack
+    unit_basis:
+      - { id: stick, label: Stick, multiplier: 1 }
+      - { id: caddy, label: Caddy, multiplier: 16 }
+    units_per_case: 96
+    cogs:
+      processing: coman_pe16
+      packaging: stick_pack_pkg
+    inventory:
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 80
+      temp_class: dry
+      weight_per_case_lbs: 18
+    bundles:
+      # Shopify DTC bundles. Caddy = 16 sticks. Subscription bundles keep the
+      # original bundle price here and apply Subscribe & Save separately:
+      # 10% / 12% / 15% off for 1/2/3 caddies. Free shipping at $75+
+      # (3-caddy bundles qualify).
+      - {
+          id: trial_3,
+          name: Trial (3 sticks),
+          units: 3,
+          pick_units: 3,
+          price: 9.99,
+          shipping_cost: 4.08,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_1_ot,
+          name: 1 Caddy (one-time),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_1_sub,
+          name: 1 Caddy (subscribe),
+          units: 16,
+          pick_units: 1,
+          price: 35.00,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.17,
+          shipping_rev: 6.17,
+        }
+      - {
+          id: caddy_2_ot,
+          name: 2 Caddy (one-time),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_2_sub,
+          name: 2 Caddy (subscribe),
+          units: 32,
+          pick_units: 2,
+          price: 66.00,
+          subscription_discount_pct: 0.12,
+          shipping_cost: 9.00,
+          shipping_rev: 9.00,
+        }
+      - {
+          id: caddy_3_ot,
+          name: 3 Caddy (one-time),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+      - {
+          id: caddy_3_sub,
+          name: 3 Caddy (subscribe),
+          units: 48,
+          pick_units: 3,
+          price: 95.00,
+          subscription_discount_pct: 0.15,
+          shipping_cost: 12.0,
+          shipping_rev: 0,
+        }
+
+  # 30-serving stand-up pouches (240g powder, same recipe as sticks).
+  # Bactolac all-in (powder + fill/seal + spoon) per quote 2025-08-29 (Kevin McClure).
+  # EPac prints pouches separately ($0.67/pouch). Case pack 10 pouches per 8x8x8.
+  - id: my30
+    name: Ginger Mango Yuzu Pouch (30-serving)
+    unit: pouch
+    unit_basis:
+      - { id: pouch, label: Pouch, multiplier: 1 }
+      - { id: case, label: Case (10), multiplier: 10 }
+    units_per_case: 10
+    cogs:
+      processing: coman_my30
+      packaging: pouch_pkg
+    inventory:
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 200
+      temp_class: dry
+      weight_per_case_lbs: 6
+    bundles:
+      - {
+          id: pouch_1_ot,
+          name: 1 Pouch (one-time),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+      - {
+          id: pouch_1_sub,
+          name: 1 Pouch (subscribe),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+
+  - id: st30
+    name: Ginger Strawberry Pouch (30-serving)
+    unit: pouch
+    unit_basis:
+      - { id: pouch, label: Pouch, multiplier: 1 }
+      - { id: case, label: Case (10), multiplier: 10 }
+    units_per_case: 10
+    cogs:
+      processing: coman_st30
+      packaging: pouch_pkg
+    inventory:
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 200
+      temp_class: dry
+      weight_per_case_lbs: 6
+    bundles:
+      - {
+          id: pouch_1_ot,
+          name: 1 Pouch (one-time),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+      - {
+          id: pouch_1_sub,
+          name: 1 Pouch (subscribe),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+
+  - id: or30
+    name: Ginger Orange Pouch (30-serving)
+    unit: pouch
+    unit_basis:
+      - { id: pouch, label: Pouch, multiplier: 1 }
+      - { id: case, label: Case (10), multiplier: 10 }
+    units_per_case: 10
+    cogs:
+      processing: coman_or30
+      packaging: pouch_pkg
+    inventory:
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 200
+      temp_class: dry
+      weight_per_case_lbs: 6
+    bundles:
+      - {
+          id: pouch_1_ot,
+          name: 1 Pouch (one-time),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+      - {
+          id: pouch_1_sub,
+          name: 1 Pouch (subscribe),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+
+  - id: pe30
+    name: Ginger Peach Pouch (30-serving)
+    unit: pouch
+    unit_basis:
+      - { id: pouch, label: Pouch, multiplier: 1 }
+      - { id: case, label: Case (10), multiplier: 10 }
+    units_per_case: 10
+    cogs:
+      processing: coman_pe30
+      packaging: pouch_pkg
+    inventory:
+      target_months_on_hand: 1
+    logistics:
+      cases_per_pallet: 200
+      temp_class: dry
+      weight_per_case_lbs: 6
+    bundles:
+      - {
+          id: pouch_1_ot,
+          name: 1 Pouch (one-time),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+      - {
+          id: pouch_1_sub,
+          name: 1 Pouch (subscribe),
+          units: 1,
+          pick_units: 1,
+          price: 39.99,
+          subscription_discount_pct: 0.10,
+          shipping_cost: 6.50,
+          shipping_rev: 6.50,
+        }
+
+# Shared constants. Refs use `constants.<id>.value`.
+constants:
+  - id: retail_weeks_per_month
+    name: Retail calendar factor
+    value: 4.33
+  - id: modeled_sku_count
+    name: Modeled SKU count
+    value: 4
+  - id: dtc_orders_baseline_skus
+    name: DTC orders ramp baseline SKU count
+    value: 2
+  - id: retail_trade_pct
+    name: Retail trade rate
+    value: 0.165
+  - id: wfm_doors_launch
+    name: Whole Foods doors at launch
+    value: 250
+  - id: wfm_doors_end
+    name: Whole Foods doors at end-of-ramp (24 mo)
+    value: 532
+  - id: wfm_caddy_units
+    name: Sticks per caddy (WFM free-fill basis)
+    value: 16
+  - id: sprouts_doors_launch
+    name: Sprouts doors at launch
+    value: 50
+  - id: sprouts_doors_end
+    name: Sprouts doors at end-of-ramp (24 mo)
+    value: 480
+  - id: retail_broker_fee_pct
+    name: Retail broker fee rate
+    value: 0.0 # For now, no charge from MacGray
+  - id: retail_collection_lag_days
+    name: Retail collection lag
+    value: 45
+  - id: dtc_collection_lag_days
+    name: DTC collection lag
+    value: 3
+  - id: dtc_returns_rate
+    name: DTC returns rate (FP returns charge basis)
+    value: 0.02
+  - id: faire_avg_order_cases
+    name: Faire average cases per wholesale order ($300 min, ~$100/case)
+    value: 3
+  - id: shopify_merchant_fee_pct
+    name: Shopify merchant fee rate
+    value: 0.029
+  - id: shopify_roas
+    name: Shopify ROAS (paid)
+    value: 2.5
+  - id: amazon_roas
+    name: Amazon ROAS (paid)
+    value: 2.61
+  - id: social_roas
+    name: Social (IG/TikTok) ROAS
+    value: 1.5
+  - id: dtc_organic_share_start
+    name: Initial organic revenue share on DTC
+    value: 0.05
+  - id: dtc_flywheel_monthly
+    name: Organic share monthly growth (flywheel + organic combined, gross of bleed)
+    value: 0.0105
+  - id: dtc_organic_bleed_monthly
+    name: Organic share monthly bleed (offset to flywheel)
+    value: 0.005
+  - id: dtc_organic_share_max
+    name: Cap on organic share
+    value: 0.6
+  - id: email_subscribers_start
+    name: Email subscribers (start)
+    value: 1888
+  - id: email_subscriber_growth_monthly
+    name: Email list monthly growth
+    value: 0.05
+  - id: email_cost_per_subscriber_annual
+    name: Annualized email cost per subscriber
+    value: 5
+  - id: demo_cost
+    name: Cost per in-store demo
+    value: 125
+  - id: demos_per_month
+    name: Demos per month after retail launch
+    value: 4
+  - id: faire_marketplace_fee_pct
+    name: Faire marketplace fee rate
+    value: 0.15
+  - id: faire_collection_lag_days
+    name: Faire collection lag
+    value: 30
+  - id: amazon_referral_pct
+    name: Amazon referral fee rate (grocery category)
+    value: 0.15
+  - id: amazon_fba_per_unit
+    name: Amazon FBA fulfillment fee per stick (~$3.20/caddy of 16)
+    value: 0.20
+  - id: amazon_storage_per_unit_month
+    name: Amazon FBA storage per stick per month (caddy ~0.01 ft^3 @ $0.87-$2.40 / ft^3 / mo)
+    value: 0.001
+  - id: amazon_collection_lag_days
+    name: Amazon collection lag
+    value: 14
+  - id: production_deposit_pct
+    name: Production deposit rate
+    value: 0.5
+  - id: production_balance_lag_days
+    name: Production balance lag
+    value: 30
+  - id: initial_production_units_per_sku
+    name: Initial production units per SKU
+    value: 48000
+  - id: prod_safety_factor
+    name: Safety multiplier on demand-aware production runs
+    value: 1.1
+  - id: founder_base_salary
+    name: Founder annual base salary
+    value: 18000
+  # DTC bundle prices are now set explicitly per bundle (one-time vs subscribe)
+  # to reflect Shopify pack-discount tiers. The old single-stick-price constant
+  # was removed; see products[*].bundles for current pricing.
+  - id: founder_annual_raise_pct
+    name: Founder annual raise rate
+    value: 0.1
+  - id: founder_bonus_pct
+    name: Founder bonus rate
+    value: 0.2
+  - id: payroll_tax_pct
+    name: Payroll tax rate
+    value: 0.15
+  - id: payroll_fee_pct
+    name: Payroll fee rate
+    value: 0.05
+
+processing:
+  - id: coman_my16
+    name: Bactolac tolled cost
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 48000, value: 0.4688 }
+        - { min_run_units: 80000, value: 0.4313 }
+        - { min_run_units: 160000, value: 0.4250 }
+        - { min_run_units: 320000, value: 0.4063 }
+        - { min_run_units: 800000, value: 0.3969 }
+
+  - id: coman_st16
+    name: Bactolac tolled cost
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 48000, value: 0.4781 }
+        - { min_run_units: 80000, value: 0.4406 }
+        - { min_run_units: 160000, value: 0.4344 }
+        - { min_run_units: 320000, value: 0.4156 }
+        - { min_run_units: 800000, value: 0.4063 }
+
+  - id: coman_or16
+    name: Bactolac tolled cost
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 48000, value: 0.4406 }
+        - { min_run_units: 80000, value: 0.4031 }
+        - { min_run_units: 160000, value: 0.3938 }
+        - { min_run_units: 320000, value: 0.3750 }
+        - { min_run_units: 800000, value: 0.3656 }
+
+  - id: coman_pe16
+    name: Bactolac tolled cost
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 48000, value: 0.4563 }
+        - { min_run_units: 80000, value: 0.4188 }
+        - { min_run_units: 160000, value: 0.4125 }
+        - { min_run_units: 320000, value: 0.3938 }
+        - { min_run_units: 800000, value: 0.3844 }
+
+  # Pouch processing — Bactolac all-in (powder + fill/seal + spoon insert) per
+  # quote 2025-08-29 (Kevin McClure, mirror/gmail/.../2025-08/records.jsonl:235).
+  # Pouch itself printed by EPac (see packaging.pouch_pkg).
+  - id: coman_my30
+    name: Bactolac tolled cost (Mango Yuzu pouch)
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 5000, value: 8.30 }
+        - { min_run_units: 10000, value: 8.15 }
+        - { min_run_units: 20000, value: 8.00 }
+        - { min_run_units: 30000, value: 7.93 }
+        - { min_run_units: 40000, value: 7.87 }
+        - { min_run_units: 50000, value: 7.80 }
+
+  - id: coman_st30
+    name: Bactolac tolled cost (Strawberry pouch)
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 5000, value: 8.50 }
+        - { min_run_units: 10000, value: 8.35 }
+        - { min_run_units: 20000, value: 8.25 }
+        - { min_run_units: 30000, value: 8.17 }
+        - { min_run_units: 40000, value: 8.00 }
+        - { min_run_units: 50000, value: 7.93 }
+
+  - id: coman_or30
+    name: Bactolac tolled cost (Orange pouch)
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 5000, value: 7.25 }
+        - { min_run_units: 10000, value: 7.10 }
+        - { min_run_units: 20000, value: 7.00 }
+        - { min_run_units: 30000, value: 6.93 }
+        - { min_run_units: 40000, value: 6.87 }
+        - { min_run_units: 50000, value: 6.80 }
+
+  - id: coman_pe30
+    name: Bactolac tolled cost (Peach pouch)
+    vendor: bactolac
+    run_cost_per_unit:
+      tiers:
+        - { min_run_units: 5000, value: 7.85 }
+        - { min_run_units: 10000, value: 7.70 }
+        - { min_run_units: 20000, value: 7.60 }
+        - { min_run_units: 30000, value: 7.53 }
+        - { min_run_units: 40000, value: 7.46 }
+        - { min_run_units: 50000, value: 7.39 }
+
+packaging:
+  - id: stick_pack_pkg
+    name: Stick pack + caddy + case (low-volume tier)
+    components:
+      - id: film
+        name: Stick pack film (STK)
+        # Sidrane Quote 24123 (2025-09-30), Silver Cosmetic Web + 1 Mil Matte OPP, 80mm × 140mm.
+        # 48K actual billed = $0.069 (Inv 165254) — sits between 30K/50K quote tiers.
+        cost:
+          tiers:
+            - { min_run_units: 20000, value: 0.073 }
+            - { min_run_units: 30000, value: 0.067 }
+            - { min_run_units: 50000, value: 0.063 }
+            - { min_run_units: 75000, value: 0.061 }
+            - { min_run_units: 100000, value: 0.059 }
+        units_per_quote: 1
+
+      - id: caddy
+        name: Caddy / display box (DB)
+        # Sidrane bundles SKUs on caddy print runs (different art, same stock/die).
+        # Tier lookup is per-SKU sticks but rates assume typical 2-SKU bundled PO.
+        # PR2 actuals (Inv 165255, 2026-04-08): 3K caddies × 2 SKUs = 6K bundle
+        # billed at $1,100/M = $1.10/caddy. Original per-SKU Oct 2025 ladder
+        # (40K=$1.86, 80K=$1.10, 160K=$0.6719) DOES NOT reflect actual billing.
+        # Tiers below reflect 2-SKU bundle: per-SKU sticks × 2 hits next tier.
+        cost:
+          tiers:
+            - { min_run_units: 48000, value: 1.1000 }
+            - { min_run_units: 80000, value: 0.7940 }
+            - { min_run_units: 160000, value: 0.5400 }
+            - { min_run_units: 320000, value: 0.3880 }
+        units_per_quote: 16
+        pack_size: 16
+
+      # Tooling/prep line omitted — small enough to ignore for steady-state.
+      # Reality: $900 tool + $200 prep billed once on PR1 caddy (Inv 164568,
+      # 2026-03-04) for first run of new die AC300557. Subsequent runs reusing
+      # same die (Inv 165255, 2026-04-08) carry no tool/prep charges.
+      # First-run amortized over 6K-caddy bundle ≈ $0.18/caddy (~1.3pp GM hit
+      # one time only). May reapply when launching new SKU/size requiring new
+      # die — unsure of future cadence.
+
+      - id: inner_case
+        name: Shipping case (IC)
+        cost: 0.5
+        units_per_quote: 96
+        pack_size: 96
+
+      - id: outer_master_case
+        name: Outer master case (OMC)
+        cost: 1
+        units_per_quote: 768
+        pack_size: 768
+
+      - id: pallet_prep
+        name: Pallet wrap + labels
+        cost: 0.05
+        units_per_quote: 16
+
+      - id: pkg_inbound_freight
+        name: Inbound freight (packaging vendor → coman)
+        cost: 0.2
+        units_per_quote: 16
+
+  - id: pouch_pkg
+    name: Stand-up pouch + spoon + case (printed pouch supplied to Bactolac)
+    components:
+      - id: pouch_film
+        name: Stand-up pouch (EPac printed)
+        # EPac quote ~$0.67/pouch per data/docs/pouch_cost_structure.md.
+        # Single tier until EPac volume quote sourced.
+        cost: 0.67
+        units_per_quote: 1
+      - id: pouch_inner_case
+        name: Shipping case (8x8x8, 10 pouches per)
+        cost: 0.65
+        units_per_quote: 10
+        pack_size: 10
+      - id: pouch_outer_master_case
+        name: Outer master case (18x18x18, 8 inner cases per = 80 pouches)
+        cost: 1.20
+        units_per_quote: 80
+        pack_size: 80
+      - id: pouch_pallet_prep
+        name: Pallet wrap + labels
+        cost: 0.05
+        units_per_quote: 10
+      - id: pouch_inbound_freight
+        name: Inbound freight (EPac pouches -> Bactolac)
+        # ~$0.50/pouch estimate per data/docs/pouch_cost_structure.md.
+        cost: 0.50
+        units_per_quote: 1
+
+  - id: merchantboxes_quote_reference
+    name: MerchantBoxes caddy + display-tier quote (reference, not wired)
+    components:
+      - id: caddy_or_tier
+        name: Caddy or display tier (combined quote, FOB China)
+        cost:
+          tiers:
+            - { min_run_units: 5000, value: 0.55 }
+            - { min_run_units: 10000, value: 0.40 }
+            - { min_run_units: 25000, value: 0.37 }
+            - { min_run_units: 50000, value: 0.35 }
+            - { min_run_units: 100000, value: 0.31 }
+        units_per_quote: 1
+
+logistics:
+  # D2C parcel (FP T1 rates as of Feb 2026)
+  dtc_pick_fee: 2.30 # first pick-unit (caddy or stick)
+  dtc_pick_addl_unit: 1.02 # each additional pick-unit
+  dtc_third_party_label_fee: 0 # FP carrier acct; set to 2.00 if 3rd party
+  dtc_units_per_order: 0 # 0 = auto-derive from bundle.pick_units
+
+  # B2B fees (FP T1)
+  # Pallet mode (whole_foods, sprouts) fires: per_store + per_pallet + pallet_wrap + outlabel
+  # Case mode  (indie_retail Faire)    fires: per_store + per_carton + per_label + outlabel
+  # Per-unit / per-carton / per-label / pallet_wrap / per_pallet auto-gated by channel mode.
+  b2b_order_prep_fee: 0
+  b2b_per_store_per_order: 2.95
+  b2b_per_unit: 0 # Bactolac pre-packs cartons; FP never picks loose units
+  b2b_per_carton: 6.25 # case-mode only (Faire). Pallet mode ignores.
+  b2b_per_label: 0 # Bactolac applies SKU labels at production
+  b2b_per_pallet: 11.25 # pallet-mode handling ("ship as is" pallet)
+  b2b_pallet_wrap: 18.50 # FP wraps freshly built outbound pallet
+  b2b_third_party_label_fee: 0 # UNFI pickup (WFM/Sprouts) + Faire prepaid labels
+
+  # Receiving / storage (FP T1)
+  pallet_in_fee: 11.25
+  receiving_per_unit: 0 # Bactolac ships pallets, not loose cases
+  receiving_per_carton: 0
+  pallet_storage_monthly: 22.50
+  bin_storage_monthly: 0
+
+  # Returns
+  returns_first_unit: 2.15
+  returns_addl_unit: 0.95
+  default_returns_rate: 0 # set per sales line via returns_rate
+
+  avg_b2b_order_cases: 60 # WFM/Sprouts default; Faire lines override to ~3
+  dtc_avg_order_value: 45
+  inbound_truckload_cost: 1200
+  pallets_per_truckload: 26
+  outbound_freight:
+    dry:
+      - { pallets_per_order: 1, cost_per_pallet: 314.11 }
+      - { pallets_per_order: 3, cost_per_pallet: 125.00 }
+      - { pallets_per_order: 6, cost_per_pallet: 102.85 }
+      - { pallets_per_order: 12, cost_per_pallet: 56.62 }
+    refer:
+      - { pallets_per_order: 1, cost_per_pallet: 439.75 }
+      - { pallets_per_order: 3, cost_per_pallet: 175.00 }
+      - { pallets_per_order: 6, cost_per_pallet: 143.99 }
+      - { pallets_per_order: 12, cost_per_pallet: 79.27 }
+    frozen:
+      - { pallets_per_order: 1, cost_per_pallet: 1550.00 }
+      - { pallets_per_order: 3, cost_per_pallet: 245.00 }
+      - { pallets_per_order: 6, cost_per_pallet: 201.58 }
+      - { pallets_per_order: 12, cost_per_pallet: 110.97 }
+
+sales_lines:
+  - id: mango_stick_wfm
+    name: Mango Yuzu Stick · WFM
+    product: my16
+    channel: whole_foods
+    start_month: 2026-07
+    price_per_unit: 1.03
+    trade_plan: whole_foods_y1_my16
+    collection_lag_days:
+      ref: constants.retail_collection_lag_days.value
+    broker_fee_pct:
+      ref: constants.retail_broker_fee_pct.value
+    units_sold:
+      driver: location_velocity
+      locations:
+        start: { ref: constants.wfm_doors_launch.value }
+        end: { ref: constants.wfm_doors_end.value }
+        ramp_months: 24
+      velocity:
+        start: 6
+        end: 24
+        ramp_months: 18
+        periods_per_month:
+          ref: constants.retail_weeks_per_month.value
+
+  - id: straw_stick_wfm
+    name: Strawberry Stick · WFM
+    product: st16
+    channel: whole_foods
+    start_month: 2026-07
+    price_per_unit: 1.03
+    trade_plan: whole_foods_y1_st16
+    collection_lag_days:
+      ref: constants.retail_collection_lag_days.value
+    broker_fee_pct:
+      ref: constants.retail_broker_fee_pct.value
+    units_sold:
+      driver: location_velocity
+      locations:
+        start: { ref: constants.wfm_doors_launch.value }
+        end: { ref: constants.wfm_doors_end.value }
+        ramp_months: 24
+      velocity:
+        start: 6
+        end: 24
+        ramp_months: 18
+        periods_per_month:
+          ref: constants.retail_weeks_per_month.value
+
+  - id: mango_stick_d2c
+    name: Mango Yuzu Stick · D2C
+    product: my16
+    channel: online_direct
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "125 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: trial_3, share: 0.10 }
+        - { bundle: caddy_1_ot, share: 0.40 }
+        - { bundle: caddy_2_ot, share: 0.20 }
+        - { bundle: caddy_3_ot, share: 0.30 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: straw_stick_d2c
+    name: Strawberry Stick · D2C
+    product: st16
+    channel: online_direct
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "125 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: trial_3, share: 0.10 }
+        - { bundle: caddy_1_ot, share: 0.40 }
+        - { bundle: caddy_2_ot, share: 0.20 }
+        - { bundle: caddy_3_ot, share: 0.30 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: orange_stick_d2c
+    name: Orange Stick · D2C
+    product: or16
+    channel: online_direct
+    start_month: 2026-07 # gated by first or16 production delivery
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "125 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: trial_3, share: 0.10 }
+        - { bundle: caddy_1_ot, share: 0.40 }
+        - { bundle: caddy_2_ot, share: 0.20 }
+        - { bundle: caddy_3_ot, share: 0.30 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: peach_stick_d2c
+    name: Peach Stick · D2C
+    product: pe16
+    channel: online_direct
+    start_month: 2026-07 # gated by first pe16 production delivery
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "125 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: trial_3, share: 0.10 }
+        - { bundle: caddy_1_ot, share: 0.40 }
+        - { bundle: caddy_2_ot, share: 0.20 }
+        - { bundle: caddy_3_ot, share: 0.30 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: mango_stick_d2c_sub
+    name: Mango Yuzu Stick · D2C Sub
+    product: my16
+    channel: online_subs
+    start_month: 2026-06
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "20 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "100 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: caddy_1_sub, share: 0.30 }
+        - { bundle: caddy_2_sub, share: 0.20 }
+        - { bundle: caddy_3_sub, share: 0.50 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: straw_stick_d2c_sub
+    name: Strawberry Stick · D2C Sub
+    product: st16
+    channel: online_subs
+    start_month: 2026-06
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "20 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "100 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: caddy_1_sub, share: 0.30 }
+        - { bundle: caddy_2_sub, share: 0.20 }
+        - { bundle: caddy_3_sub, share: 0.50 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: orange_stick_d2c_sub
+    name: Orange Stick · D2C Sub
+    product: or16
+    channel: online_subs
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "20 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "100 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: caddy_1_sub, share: 0.30 }
+        - { bundle: caddy_2_sub, share: 0.20 }
+        - { bundle: caddy_3_sub, share: 0.50 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: peach_stick_d2c_sub
+    name: Peach Stick · D2C Sub
+    product: pe16
+    channel: online_subs
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.dtc_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.shopify_merchant_fee_pct.value
+    returns_rate:
+      ref: constants.dtc_returns_rate.value
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "20 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "100 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: caddy_1_sub, share: 0.30 }
+        - { bundle: caddy_2_sub, share: 0.20 }
+        - { bundle: caddy_3_sub, share: 0.50 }
+      share:
+        expr: "1 / modeled_sku_count"
+
+  - id: mango_stick_faire
+    name: Mango Yuzu Stick · Faire
+    product: my16
+    channel: indie_retail
+    start_month: 2026-07
+    price_per_unit: 1.25
+    collection_lag_days:
+      ref: constants.faire_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.faire_marketplace_fee_pct.value
+    avg_b2b_order_cases:
+      ref: constants.faire_avg_order_cases.value
+    units_sold:
+      driver: location_velocity
+      locations: { start: 10, end: 1000, ramp_months: 24, curve: exponential }
+      velocity: { start: 8, end: 32, ramp_months: 24 }
+
+  - id: straw_stick_faire
+    name: Strawberry Stick · Faire
+    product: st16
+    channel: indie_retail
+    start_month: 2026-07
+    price_per_unit: 1.25
+    collection_lag_days:
+      ref: constants.faire_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.faire_marketplace_fee_pct.value
+    avg_b2b_order_cases:
+      ref: constants.faire_avg_order_cases.value
+    units_sold:
+      driver: location_velocity
+      locations: { start: 10, end: 1000, ramp_months: 24, curve: exponential }
+      velocity: { start: 8, end: 32, ramp_months: 24 }
+
+  - id: orange_stick_faire
+    name: Orange Stick · Faire
+    product: or16
+    channel: indie_retail
+    start_month: 2026-07
+    price_per_unit: 1.25
+    collection_lag_days:
+      ref: constants.faire_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.faire_marketplace_fee_pct.value
+    avg_b2b_order_cases:
+      ref: constants.faire_avg_order_cases.value
+    units_sold:
+      driver: location_velocity
+      locations: { start: 10, end: 1000, ramp_months: 24, curve: exponential }
+      velocity: { start: 8, end: 32, ramp_months: 24 }
+
+  - id: peach_stick_faire
+    name: Peach Stick · Faire
+    product: pe16
+    channel: indie_retail
+    start_month: 2026-07
+    price_per_unit: 1.25
+    collection_lag_days:
+      ref: constants.faire_collection_lag_days.value
+    merchant_fee_pct:
+      ref: constants.faire_marketplace_fee_pct.value
+    avg_b2b_order_cases:
+      ref: constants.faire_avg_order_cases.value
+    units_sold:
+      driver: location_velocity
+      locations: { start: 10, end: 1000, ramp_months: 24, curve: exponential }
+      velocity: { start: 8, end: 32, ramp_months: 24 }
+
+  - id: mango_stick_azn
+    name: Mango Yuzu Stick · AZN
+    product: my16
+    channel: amazon
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.amazon_collection_lag_days.value
+    units_sold:
+      driver: linear_ramp
+      start: 30
+      end: 80
+      ramp_months: 48
+    marketplace_fee_pct:
+      ref: constants.amazon_referral_pct.value
+    fulfillment_per_unit:
+      ref: constants.amazon_fba_per_unit.value
+    other_per_unit:
+      ref: constants.amazon_storage_per_unit_month.value
+
+  - id: straw_stick_azn
+    name: Strawberry Stick · AZN
+    product: st16
+    channel: amazon
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.amazon_collection_lag_days.value
+    units_sold:
+      driver: linear_ramp
+      start: 30
+      end: 80
+      ramp_months: 48
+    marketplace_fee_pct:
+      ref: constants.amazon_referral_pct.value
+    fulfillment_per_unit:
+      ref: constants.amazon_fba_per_unit.value
+    other_per_unit:
+      ref: constants.amazon_storage_per_unit_month.value
+
+  - id: orange_stick_azn
+    name: Orange Stick · AZN
+    product: or16
+    channel: amazon
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.amazon_collection_lag_days.value
+    units_sold:
+      driver: linear_ramp
+      start: 30
+      end: 80
+      ramp_months: 48
+    marketplace_fee_pct:
+      ref: constants.amazon_referral_pct.value
+    fulfillment_per_unit:
+      ref: constants.amazon_fba_per_unit.value
+    other_per_unit:
+      ref: constants.amazon_storage_per_unit_month.value
+
+  - id: peach_stick_azn
+    name: Peach Stick · AZN
+    product: pe16
+    channel: amazon
+    start_month: 2026-07
+    price_per_unit: 2.19
+    collection_lag_days:
+      ref: constants.amazon_collection_lag_days.value
+    units_sold:
+      driver: linear_ramp
+      start: 30
+      end: 80
+      ramp_months: 48
+    marketplace_fee_pct:
+      ref: constants.amazon_referral_pct.value
+    fulfillment_per_unit:
+      ref: constants.amazon_fba_per_unit.value
+    other_per_unit:
+      ref: constants.amazon_storage_per_unit_month.value
+
+  - id: mango_stick_sprouts
+    name: Mango Yuzu Stick · Sprouts
+    product: my16
+    channel: sprouts
+    start_month: 2027-02
+    price_per_unit: 1.03
+    trade_plan: sprouts_y1_my16
+    collection_lag_days:
+      ref: constants.retail_collection_lag_days.value
+    broker_fee_pct:
+      ref: constants.retail_broker_fee_pct.value
+    units_sold:
+      driver: location_velocity
+      locations:
+        start: { ref: constants.sprouts_doors_launch.value }
+        end: { ref: constants.sprouts_doors_end.value }
+        ramp_months: 24
+      velocity:
+        start: 4
+        end: 18
+        ramp_months: 24
+        periods_per_month:
+          ref: constants.retail_weeks_per_month.value
+
+  - id: peach_stick_sprouts
+    name: Peach Stick · Sprouts
+    product: pe16
+    channel: sprouts
+    start_month: 2027-02
+    price_per_unit: 1.03
+    trade_plan: sprouts_y1_pe16
+    collection_lag_days:
+      ref: constants.retail_collection_lag_days.value
+    broker_fee_pct:
+      ref: constants.retail_broker_fee_pct.value
+    units_sold:
+      driver: location_velocity
+      locations:
+        start: { ref: constants.sprouts_doors_launch.value }
+        end: { ref: constants.sprouts_doors_end.value }
+        ramp_months: 24
+      velocity:
+        start: 4
+        end: 18
+        ramp_months: 24
+        periods_per_month:
+          ref: constants.retail_weeks_per_month.value
+
+  # ---- Stand-up pouch sales lines (30-serving, 4 flavors x 4 channels) ----
+  # Start 2026-10: gives ~5 months for EPac print + Bactolac first pouch run.
+  # Channels: online_direct, online_subs, amazon, indie_retail (Faire).
+  # No retail (WFM/Sprouts) for pouches — DTC/Amazon/Faire only per direction.
+
+  - id: mango_pouch_d2c
+    name: Mango Yuzu Pouch · D2C
+    product: my30
+    channel: online_direct
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "10 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "50 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_ot, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: straw_pouch_d2c
+    name: Strawberry Pouch · D2C
+    product: st30
+    channel: online_direct
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "10 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "50 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_ot, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: orange_pouch_d2c
+    name: Orange Pouch · D2C
+    product: or30
+    channel: online_direct
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "10 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "50 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_ot, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: peach_pouch_d2c
+    name: Peach Pouch · D2C
+    product: pe30
+    channel: online_direct
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "10 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "50 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_ot, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: mango_pouch_d2c_sub
+    name: Mango Yuzu Pouch · D2C Sub
+    product: my30
+    channel: online_subs
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "5 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_sub, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: straw_pouch_d2c_sub
+    name: Strawberry Pouch · D2C Sub
+    product: st30
+    channel: online_subs
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "5 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_sub, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: orange_pouch_d2c_sub
+    name: Orange Pouch · D2C Sub
+    product: or30
+    channel: online_subs
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "5 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_sub, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: peach_pouch_d2c_sub
+    name: Peach Pouch · D2C Sub
+    product: pe30
+    channel: online_subs
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.dtc_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.shopify_merchant_fee_pct.value }
+    returns_rate: { ref: constants.dtc_returns_rate.value }
+    units_sold:
+      driver: order_bundles
+      orders:
+        start: { expr: "5 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        end: { expr: "30 * sqrt(modeled_sku_count / dtc_orders_baseline_skus)" }
+        ramp_months: 24
+      bundle_mix:
+        - { bundle: pouch_1_sub, share: 1.0 }
+      share: { expr: "1 / modeled_sku_count" }
+
+  - id: mango_pouch_azn
+    name: Mango Yuzu Pouch · AZN
+    product: my30
+    channel: amazon
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.amazon_collection_lag_days.value }
+    units_sold:
+      driver: linear_ramp
+      start: 10
+      end: 40
+      ramp_months: 48
+    marketplace_fee_pct: { ref: constants.amazon_referral_pct.value }
+    fulfillment_per_unit: 4.50
+    other_per_unit: 0.05
+
+  - id: straw_pouch_azn
+    name: Strawberry Pouch · AZN
+    product: st30
+    channel: amazon
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.amazon_collection_lag_days.value }
+    units_sold:
+      driver: linear_ramp
+      start: 10
+      end: 40
+      ramp_months: 48
+    marketplace_fee_pct: { ref: constants.amazon_referral_pct.value }
+    fulfillment_per_unit: 4.50
+    other_per_unit: 0.05
+
+  - id: orange_pouch_azn
+    name: Orange Pouch · AZN
+    product: or30
+    channel: amazon
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.amazon_collection_lag_days.value }
+    units_sold:
+      driver: linear_ramp
+      start: 10
+      end: 40
+      ramp_months: 48
+    marketplace_fee_pct: { ref: constants.amazon_referral_pct.value }
+    fulfillment_per_unit: 4.50
+    other_per_unit: 0.05
+
+  - id: peach_pouch_azn
+    name: Peach Pouch · AZN
+    product: pe30
+    channel: amazon
+    start_month: 2026-10
+    price_per_unit: 39.99
+    collection_lag_days: { ref: constants.amazon_collection_lag_days.value }
+    units_sold:
+      driver: linear_ramp
+      start: 10
+      end: 40
+      ramp_months: 48
+    marketplace_fee_pct: { ref: constants.amazon_referral_pct.value }
+    fulfillment_per_unit: 4.50
+    other_per_unit: 0.05
+
+  - id: mango_pouch_faire
+    name: Mango Yuzu Pouch · Faire
+    product: my30
+    channel: indie_retail
+    start_month: 2026-10
+    price_per_unit: 20.00
+    collection_lag_days: { ref: constants.faire_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.faire_marketplace_fee_pct.value }
+    avg_b2b_order_cases: 2
+    units_sold:
+      driver: location_velocity
+      locations: { start: 5, end: 300, ramp_months: 24, curve: exponential }
+      velocity: { start: 1, end: 4, ramp_months: 24 }
+
+  - id: straw_pouch_faire
+    name: Strawberry Pouch · Faire
+    product: st30
+    channel: indie_retail
+    start_month: 2026-10
+    price_per_unit: 20.00
+    collection_lag_days: { ref: constants.faire_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.faire_marketplace_fee_pct.value }
+    avg_b2b_order_cases: 2
+    units_sold:
+      driver: location_velocity
+      locations: { start: 5, end: 300, ramp_months: 24, curve: exponential }
+      velocity: { start: 1, end: 4, ramp_months: 24 }
+
+  - id: orange_pouch_faire
+    name: Orange Pouch · Faire
+    product: or30
+    channel: indie_retail
+    start_month: 2026-10
+    price_per_unit: 20.00
+    collection_lag_days: { ref: constants.faire_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.faire_marketplace_fee_pct.value }
+    avg_b2b_order_cases: 2
+    units_sold:
+      driver: location_velocity
+      locations: { start: 5, end: 300, ramp_months: 24, curve: exponential }
+      velocity: { start: 1, end: 4, ramp_months: 24 }
+
+  - id: peach_pouch_faire
+    name: Peach Pouch · Faire
+    product: pe30
+    channel: indie_retail
+    start_month: 2026-10
+    price_per_unit: 20.00
+    collection_lag_days: { ref: constants.faire_collection_lag_days.value }
+    merchant_fee_pct: { ref: constants.faire_marketplace_fee_pct.value }
+    avg_b2b_order_cases: 2
+    units_sold:
+      driver: location_velocity
+      locations: { start: 5, end: 300, ramp_months: 24, curve: exponential }
+      velocity: { start: 1, end: 4, ramp_months: 24 }
+
+distributors:
+  - id: unfi
+    name: UNFI
+    margin_pct: 0
+    spoils_allowance_pct: 0.01
+    cash_discount_pct: 0.02
+    payment_lag_days: 60
+
+trade_plans:
+  - id: whole_foods_y1_my16
+    name: "Whole Foods Year 1"
+    product: my16
+    channel: whole_foods
+    start_month: 2026-07
+    end_month: 2032-07
+    # 2 OI/yr x 15% x 1mo/12 = 2.5%
+    off_invoice_pct: 0.025
+    # 4 MCB/yr x 20% x ~2 actual wks each / 52 ≈ 3.1%; use 3.33% (1mo nominal / 12 x 4 x 20% halved for 2-wk reality)
+    mcb_pct: 0.0333
+    mcb_on_top_of_oi: true
+    # No scan dollars or EDLC for WFM per John 2026-05-21
+    scan_pct: 0
+    spoilage_pct: 0.01
+    # 5% retail overlay on OI weeks + general buffer bucket
+    coop_mdf_pct: 0.05
+    edlc_pct: 0
+    free_fill:
+      # Lifetime free fill = 1 caddy/SKU/store × end-of-ramp WFM doors.
+      # Engine spreads emission across months as new doors open (per_new_location).
+      # Cogs only - no markup; free fill is literally giving units away.
+      units: { expr: "wfm_doors_end * wfm_caddy_units" }
+      value_basis: cogs
+      per_new_location: true
+
+  - id: whole_foods_y1_st16
+    name: "Whole Foods Year 1"
+    product: st16
+    channel: whole_foods
+    start_month: 2026-07
+    end_month: 2032-07
+    off_invoice_pct: 0.025
+    mcb_pct: 0.0333
+    mcb_on_top_of_oi: true
+    scan_pct: 0
+    spoilage_pct: 0.01
+    coop_mdf_pct: 0.05
+    edlc_pct: 0
+    free_fill:
+      # Lifetime free fill = 1 caddy/SKU/store × end-of-ramp WFM doors.
+      # Engine spreads emission across months as new doors open (per_new_location).
+      # Cogs only - no markup; free fill is literally giving units away.
+      units: { expr: "wfm_doors_end * wfm_caddy_units" }
+      value_basis: cogs
+      per_new_location: true
+
+  - id: sprouts_y1_my16
+    name: Sprouts Year 1
+    product: my16
+    channel: sprouts
+    start_month: 2027-02
+    end_month: 2032-02
+    off_invoice_pct: 0.025
+    mcb_pct: 0.0167
+    mcb_on_top_of_oi: true
+    scan_pct: 0.0226
+    spoilage_pct: 0.01
+    coop_mdf_pct: 0.05
+    slotting_per_store: 34.34
+    tail_pct: 0.22
+    free_fill:
+      # Lifetime free fill = 1 caddy/SKU/store × end-of-ramp Sprouts doors.
+      # Engine spreads emission across months as new doors open (per_new_location).
+      # Cogs only - no markup; free fill is literally giving units away.
+      units: { expr: "sprouts_doors_end * wfm_caddy_units" }
+      value_basis: cogs
+      per_new_location: true
+    events:
+      - id: tpr_a
+        kind: tpr
+        start_month: 2027-04
+        end_month: 2027-04
+        weeks_in_month: 4
+        discount_pct: 0.15
+        unit_lift_mult: 1.55
+        fee_per_event: 2250
+      - id: tpr_b
+        kind: tpr
+        start_month: 2027-07
+        end_month: 2027-07
+        weeks_in_month: 4
+        discount_pct: 0.15
+        unit_lift_mult: 1.55
+        fee_per_event: 2250
+      - id: tpr_c
+        kind: tpr
+        start_month: 2027-10
+        end_month: 2027-10
+        weeks_in_month: 4
+        discount_pct: 0.15
+        unit_lift_mult: 1.55
+        fee_per_event: 2250
+      - id: cat_sale_a
+        kind: category_sale
+        start_month: 2027-06
+        end_month: 2027-06
+        weeks_in_month: 1
+        discount_pct: 0.2555
+        unit_lift_mult: 1.85
+      - id: cat_sale_b
+        kind: category_sale
+        start_month: 2027-11
+        end_month: 2027-11
+        weeks_in_month: 1
+        discount_pct: 0.2555
+        unit_lift_mult: 1.85
+    tiered_fees:
+      - id: ise
+        kind: ise
+        rate: 0.05
+        gs_threshold_annual: 150000
+
+  - id: sprouts_y1_pe16
+    name: Sprouts Year 1
+    product: pe16
+    channel: sprouts
+    start_month: 2027-02
+    end_month: 2032-02
+    off_invoice_pct: 0.025
+    mcb_pct: 0.0167
+    mcb_on_top_of_oi: true
+    scan_pct: 0.0226
+    spoilage_pct: 0.01
+    coop_mdf_pct: 0.05
+    slotting_per_store: 34.34
+    tail_pct: 0.22
+    free_fill:
+      # Lifetime free fill = 1 caddy/SKU/store × end-of-ramp Sprouts doors.
+      # Engine spreads emission across months as new doors open (per_new_location).
+      # Cogs only - no markup; free fill is literally giving units away.
+      units: { expr: "sprouts_doors_end * wfm_caddy_units" }
+      value_basis: cogs
+      per_new_location: true
+    events:
+      - id: tpr_a
+        kind: tpr
+        start_month: 2027-04
+        end_month: 2027-04
+        weeks_in_month: 4
+        discount_pct: 0.15
+        unit_lift_mult: 1.55
+        fee_per_event: 2250
+      - id: tpr_b
+        kind: tpr
+        start_month: 2027-07
+        end_month: 2027-07
+        weeks_in_month: 4
+        discount_pct: 0.15
+        unit_lift_mult: 1.55
+        fee_per_event: 2250
+      - id: tpr_c
+        kind: tpr
+        start_month: 2027-10
+        end_month: 2027-10
+        weeks_in_month: 4
+        discount_pct: 0.15
+        unit_lift_mult: 1.55
+        fee_per_event: 2250
+      - id: cat_sale_a
+        kind: category_sale
+        start_month: 2027-06
+        end_month: 2027-06
+        weeks_in_month: 1
+        discount_pct: 0.2555
+        unit_lift_mult: 1.85
+      - id: cat_sale_b
+        kind: category_sale
+        start_month: 2027-11
+        end_month: 2027-11
+        weeks_in_month: 1
+        discount_pct: 0.2555
+        unit_lift_mult: 1.85
+    tiered_fees:
+      - id: ise
+        kind: ise
+        rate: 0.05
+        gs_threshold_annual: 150000
+
+marketing_programs:
+  - id: shopify_paid_online_direct
+    name: Shopify Ads — Online Direct
+    channel: online_direct
+    category: dtc_paid
+    working: true
+    amount:
+      expr: "min(550, 350 + 100 * month_index)"
+
+  - id: shopify_paid_online_subs
+    name: Shopify Ads — Online Subs
+    channel: online_subs
+    category: dtc_paid
+    working: true
+    amount: 200
+
+  - id: social_dtc
+    name: Social Boosts (IG/TikTok)
+    channel: online_direct
+    category: dtc_social
+    working: true
+    amount: 0
+
+  - id: influencer_misc
+    name: Influencer + PR + Misc
+    channel: online_direct
+    category: dtc_paid
+    working: false
+    amount: 1500
+
+  - id: email_marketing
+    name: Email Program
+    channel: online_subs
+    category: dtc_email
+    working: true
+    amount:
+      expr: "email_subscribers_start * ((1 + email_subscriber_growth_monthly) ** month_index) * email_cost_per_subscriber_annual / 12"
+
+  - id: email_agency
+    name: Email Agency
+    category: dtc_email
+    working: false
+    amount: 1500
+
+  - id: amazon_paid
+    name: Amazon Ads
+    channel: amazon
+    category: amazon_paid
+    working: true
+    amount:
+      expr: "min(5500, 2500 + 500 * program_month_index)"
+    start_month: 2026-06
+
+  - id: amazon_agency
+    name: Amazon + Instacart Agency
+    category: amazon_paid
+    working: false
+    amount: 3000
+    start_month: 2026-06
+
+  - id: retail_shopper_whole_foods
+    name: Whole Foods Shopper (Aisle, etc.)
+    channel: whole_foods
+    category: retail_shopper
+    working: true
+    amount: 500
+    start_month: 2026-08
+
+  - id: retail_shopper_sprouts
+    name: Sprouts Aisle / Shopper
+    channel: sprouts
+    category: retail_shopper
+    working: true
+    amount: 500
+    start_month: 2027-02
+
+  - id: retail_shopper_misc
+    name: Thrive / ButcherBox / Misc Shopper
+    category: retail_shopper
+    working: false
+    amount: 500
+    start_month: 2026-08
+
+  - id: demos_in_store_whole_foods
+    name: In-store demos (Whole Foods)
+    category: demos
+    working: true
+    amount:
+      expr: "demo_cost * demos_per_month"
+    start_month: 2026-08
+
+  - id: demos_in_store_sprouts
+    name: In-store demos (Sprouts)
+    category: demos
+    working: true
+    amount:
+      expr: "demo_cost * demos_per_month"
+    start_month: 2027-02
+
+  - id: agency_search_social
+    name: Search + Social agency fees
+    category: agency
+    working: false
+    amount: 2500
+
+  - id: agency_pr
+    name: PR agency
+    category: agency
+    working: false
+    amount: 2000
+
+  - id: graphic_design
+    name: Graphic design
+    category: agency
+    working: false
+    amount: 800
+
+  - id: website
+    name: Website / Shopify dev
+    category: agency
+    working: false
+    amount: 600
+
+production_runs:
+  - id: my16_recurring_q
+    product: my16
+    units:
+      expr: "prod_safety_factor * suggested_production_units"
+    delivery_month: 2026-07
+    lead_months: 0
+    deposit_pct:
+      ref: constants.production_deposit_pct.value
+    balance_lag_days:
+      ref: constants.production_balance_lag_days.value
+    cadence:
+      every_months: 3
+      until: 2031-01
+  - id: st16_recurring_q
+    product: st16
+    units:
+      expr: "prod_safety_factor * suggested_production_units"
+    delivery_month: 2026-07
+    lead_months: 0
+    deposit_pct:
+      ref: constants.production_deposit_pct.value
+    balance_lag_days:
+      ref: constants.production_balance_lag_days.value
+    cadence:
+      every_months: 3
+      until: 2031-01
+  - id: or16_recurring_q
+    product: or16
+    units:
+      expr: "prod_safety_factor * suggested_production_units"
+    delivery_month: 2026-07
+    lead_months: 0
+    deposit_pct:
+      ref: constants.production_deposit_pct.value
+    balance_lag_days:
+      ref: constants.production_balance_lag_days.value
+    cadence:
+      every_months: 3
+      until: 2031-01
+  - id: pe16_recurring_q
+    product: pe16
+    units:
+      expr: "prod_safety_factor * suggested_production_units"
+    delivery_month: 2026-07
+    lead_months: 0
+    deposit_pct:
+      ref: constants.production_deposit_pct.value
+    balance_lag_days:
+      ref: constants.production_balance_lag_days.value
+    cadence:
+      every_months: 3
+      until: 2031-01
+
+payroll:
+  - id: team_payroll
+    person: Team
+    role: Team
+    department: operations
+    start_month: 2026-07
+    salary_annual: 120000
+    annual_raise_pct: 0.05
+    bonus_pct: 0.05
+    payroll_tax_pct:
+      ref: constants.payroll_tax_pct.value
+    payroll_fee_pct:
+      ref: constants.payroll_fee_pct.value
+
+expenses:
+  - id: ops_consultants
+    name: Ops Consultants (MacGray)
+    department: operations
+    account: consultants.operations
+    amount: 2000
+
+  - id: accounting
+    name: Accounting / Bookkeeping (Scott)
+    department: g_and_a
+    account: professional_services.accounting
+    amount: 500
+
+  - id: software
+    name: Software
+    department: g_and_a
+    account: office.software
+    amount: 300
+
+  - id: sps_commerce
+    name: SPS Commerce
+    department: operations
+    account: edi
+    amount: 591
+
+  - id: fp_account_mgmt
+    name: Fulfillment Plus — Account Management
+    department: operations
+    account: fulfillment.fixed.account_mgmt
+    vendor: fulfillment_plus
+    amount: 285
+    start_month: 2026-05
+
+  - id: fp_technology
+    name: Fulfillment Plus — Technology / system
+    department: operations
+    account: fulfillment.fixed.technology
+    vendor: fulfillment_plus
+    amount: 95
+    start_month: 2026-05
