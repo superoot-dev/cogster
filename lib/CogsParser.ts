@@ -1,5 +1,5 @@
 import { Result, err, ok } from "./CoreTypings";
-import { AggOp, Axis, BranchCase, Binding, ChartConfig, ChartEntry, ChartKind, Expr, Program, Qty, TagSet, Unit } from "./CogsTypes";
+import { AggOp, Axis, AxisGroup, BranchCase, Binding, ChartConfig, ChartEntry, ChartKind, Expr, Program, Qty, TagSet, Unit } from "./CogsTypes";
 import { parseUnit } from "./CogsUnits";
 import { resolveColor } from "./CogsColors";
 
@@ -97,6 +97,8 @@ type Ctx = {
   names: Set<string>;
   axes: Map<string, Set<string>>;
   tagToAxis: Map<string, string>;
+  groupToAxis: Map<string, string>;
+  groupMembers: Map<string, string[]>;
 };
 
 function parseQty(c: Cursor): Result<Qty, string> {
@@ -202,7 +204,10 @@ function parseRefName(c: Cursor, ctx: Ctx): { name: string } | null {
   return null;
 }
 
-type TagParse = { kind: "wildcard" } | { kind: "tag"; axis: string; value: string } | { kind: "axis"; name: string };
+type TagParse =
+  | { kind: "wildcard" }
+  | { kind: "tag"; axis: string; values: string[] }
+  | { kind: "axis"; name: string };
 
 function parseTagAfterColon(c: Cursor, ctx: Ctx): Result<TagParse, string> {
   const colon = take(c);
@@ -223,7 +228,12 @@ function parseTagAfterColon(c: Cursor, ctx: Ctx): Result<TagParse, string> {
     const ax = ctx.tagToAxis.get(candidate);
     if (ax) {
       c.i = startI + n;
-      return ok({ kind: "tag", axis: ax, value: candidate });
+      return ok({ kind: "tag", axis: ax, values: [candidate] });
+    }
+    const gax = ctx.groupToAxis.get(candidate);
+    if (gax) {
+      c.i = startI + n;
+      return ok({ kind: "tag", axis: gax, values: ctx.groupMembers.get(candidate)! });
     }
     if (ctx.axes.has(candidate)) {
       c.i = startI + n;
@@ -240,7 +250,7 @@ function parseSelectorTags(c: Cursor, ctx: Ctx): Result<TagSet, string> {
     if (!t.ok) return t;
     if (t.value.kind !== "tag") return err(`selector expects tag values, got ${t.value.kind}`);
     if (!filter[t.value.axis]) filter[t.value.axis] = [];
-    filter[t.value.axis].push(t.value.value);
+    filter[t.value.axis].push(...t.value.values);
   }
   return ok(filter);
 }
@@ -250,7 +260,7 @@ function parseAxisList(c: Cursor, ctx: Ctx): Result<string[], string> {
   while (isOp(peek(c), ":")) {
     const t = parseTagAfterColon(c, ctx);
     if (!t.ok) return t;
-    if (t.value.kind !== "axis") return err(`aggregation expects axis names, got ${t.value.kind === "tag" ? `tag '${t.value.value}'` : "wildcard"}`);
+    if (t.value.kind !== "axis") return err(`aggregation expects axis names, got ${t.value.kind === "tag" ? `tag '${t.value.values.join(" ")}'` : "wildcard"}`);
     axes.push(t.value.name);
   }
   if (axes.length === 0) return err("expected at least one ':axis' after 'over'");
@@ -398,23 +408,24 @@ function parseBranchTags(src: string, ctx: Ctx): Result<{ tags: TagSet; rest: st
     }
     if (t.value.kind === "tag") {
       if (!tags[t.value.axis]) tags[t.value.axis] = [];
-      tags[t.value.axis].push(t.value.value);
+      tags[t.value.axis].push(...t.value.values);
     }
   }
   const remaining = src.slice(c.toks[c.i]?.pos ?? src.length);
   return ok({ tags, rest: remaining });
 }
 
-type RawAxis = { name: string; values: string[] };
+type RawAxis = { name: string; values: string[]; groups: AxisGroup[] };
 type RawBinding = { name: string; rhs: string; branches: string[] };
 type RawChart = { color: string; chart: string; ref: string };
 type RawChartConfig = { name: string; kind: ChartKind };
-const CHART_CONFIG_LINE = /^chart\s+([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(bar|pie)\s*$/;
+const CHART_CONFIG_LINE = /^chart\s+([A-Za-z_][A-Za-z0-9_-]*)\s*(?:=\s*(bar|pie)\s*)?$/;
 
 function parseChartConfigLine(line: string): Result<RawChartConfig, string> {
   const m = line.match(CHART_CONFIG_LINE);
-  if (!m) return err(`bad chart config (expected 'chart <name> = bar|pie'): '${line}'`);
-  return ok({ name: m[1], kind: m[2] as ChartKind });
+  if (!m) return err(`bad chart config (expected 'chart <name>' or 'chart <name> = bar|pie'): '${line}'`);
+  const kind = (m[2] as ChartKind | undefined) ?? "bar";
+  return ok({ name: m[1], kind });
 }
 const CHART_LINE = /^#([A-Za-z0-9]+)\.([A-Za-z_][A-Za-z0-9_-]*)\s+(.+?)\s*$/;
 
@@ -428,9 +439,49 @@ function parseChartLine(line: string): Result<RawChart, string> {
   return ok({ color, chart: m[2], ref });
 }
 
+const CHART_BLOCK_ENTRY = /^(?:#([A-Za-z0-9]+)\s+)?(.+?)\s*$/;
+
+function parseChartBlockEntry(line: string, chart: string): Result<RawChart, string> {
+  const m = line.trim().match(CHART_BLOCK_ENTRY);
+  if (!m) return err(`bad chart block entry: '${line}'`);
+  const colorRaw = m[1];
+  const ref = collapseSpaces(m[2]);
+  if (!ref) return err(`chart block entry missing binding reference`);
+  let color = "#auto";
+  if (colorRaw) {
+    const resolved = resolveColor(colorRaw);
+    if (!resolved) return err(`unknown color '#${colorRaw}'`);
+    color = resolved;
+  }
+  return ok({ color, chart, ref });
+}
+
 function isBranchLine(line: string): boolean {
   const t = line.trimStart();
   return t.startsWith(":") || t.startsWith("|");
+}
+
+function isIndented(line: string): boolean {
+  return /^[ \t]/.test(line) && line.trim().length > 0;
+}
+
+const AXIS_GROUP_LINE = /^group\s+:([A-Za-z_][A-Za-z0-9_-]*(?:\s+[A-Za-z_][A-Za-z0-9_-]*)*)\s*=\s*(.+)$/;
+
+function parseAxisGroupLine(line: string, axisName: string): Result<AxisGroup, string> {
+  const m = line.trim().match(AXIS_GROUP_LINE);
+  if (!m) return err(`bad axis group (expected 'group :name = :tag :tag'): '${line.trim()}'`);
+  const groupName = collapseSpaces(m[1]);
+  const valsStr = m[2].trim();
+  if (!valsStr.startsWith(":")) return err(`axis '${axisName}' group '${groupName}' values must start with ':'`);
+  const raw = valsStr.split(":").slice(1);
+  const parts: string[] = [];
+  for (const p of raw) {
+    if (/^\s/.test(p)) return err(`axis '${axisName}' group '${groupName}': no space allowed after ':'`);
+    const v = collapseSpaces(p);
+    if (v) parts.push(v);
+  }
+  if (parts.length === 0) return err(`axis '${axisName}' group '${groupName}' has no values`);
+  return ok({ name: groupName, values: parts });
 }
 
 function parseAxisLine(line: string): Result<RawAxis, string> {
@@ -447,7 +498,7 @@ function parseAxisLine(line: string): Result<RawAxis, string> {
     if (v) parts.push(v);
   }
   if (parts.length === 0) return err(`axis '${name}' has no values`);
-  return ok({ name, values: parts });
+  return ok({ name, values: parts, groups: [] });
 }
 
 type ScanResult = { axes: RawAxis[]; bindings: RawBinding[]; charts: RawChart[]; chartConfigs: RawChartConfig[] };
@@ -529,13 +580,33 @@ function scanLines(src: string): Result<ScanResult, string> {
       if (!cc.ok) return cc;
       chartConfigs.push(cc.value);
       i += 1;
+      while (i < lines.length) {
+        const raw = lines[i];
+        if (!raw.trim()) { i += 1; continue; }
+        if (!isIndented(raw)) break;
+        const entry = parseChartBlockEntry(raw, cc.value.name);
+        if (!entry.ok) return entry;
+        charts.push(entry.value);
+        i += 1;
+      }
       continue;
     }
     if (trimmed.startsWith("axis ")) {
       const ax = parseAxisLine(trimmed);
       if (!ax.ok) return ax;
-      axes.push(ax.value);
       i += 1;
+      while (i < lines.length) {
+        const raw = lines[i];
+        if (!raw.trim()) { i += 1; continue; }
+        if (!isIndented(raw)) break;
+        const stripped = raw.trim();
+        if (!stripped.startsWith("group ")) break;
+        const g = parseAxisGroupLine(raw, ax.value.name);
+        if (!g.ok) return g;
+        ax.value.groups.push(g.value);
+        i += 1;
+      }
+      axes.push(ax.value);
       continue;
     }
     const eq = trimmed.indexOf("=");
@@ -599,6 +670,8 @@ function scanLines(src: string): Result<ScanResult, string> {
 function buildCtx(scan: ScanResult): Result<Ctx, string> {
   const axes = new Map<string, Set<string>>();
   const tagToAxis = new Map<string, string>();
+  const groupToAxis = new Map<string, string>();
+  const groupMembers = new Map<string, string[]>();
   for (const ax of scan.axes) {
     if (axes.has(ax.name)) return err(`duplicate axis '${ax.name}'`);
     axes.set(ax.name, new Set(ax.values));
@@ -607,12 +680,26 @@ function buildCtx(scan: ScanResult): Result<Ctx, string> {
       tagToAxis.set(v, ax.name);
     }
   }
+  for (const ax of scan.axes) {
+    for (const g of ax.groups) {
+      if (tagToAxis.has(g.name)) return err(`axis '${ax.name}' group '${g.name}' collides with existing tag`);
+      if (groupToAxis.has(g.name)) return err(`duplicate group '${g.name}'`);
+      for (const m of g.values) {
+        const memberAxis = tagToAxis.get(m);
+        if (memberAxis !== ax.name) {
+          return err(`axis '${ax.name}' group '${g.name}' references '${m}' which is not a tag of this axis`);
+        }
+      }
+      groupToAxis.set(g.name, ax.name);
+      groupMembers.set(g.name, g.values);
+    }
+  }
   const names = new Set<string>();
   for (const b of scan.bindings) {
     if (names.has(b.name)) return err(`duplicate binding '${b.name}'`);
     names.add(b.name);
   }
-  return ok({ names, axes, tagToAxis });
+  return ok({ names, axes, tagToAxis, groupToAxis, groupMembers });
 }
 
 export function parseProgram(src: string): Result<Program, string> {
@@ -621,7 +708,7 @@ export function parseProgram(src: string): Result<Program, string> {
   const ctxR = buildCtx(scan.value);
   if (!ctxR.ok) return ctxR;
   const ctx = ctxR.value;
-  const axes: Axis[] = scan.value.axes.map((a) => ({ name: a.name, values: a.values }));
+  const axes: Axis[] = scan.value.axes.map((a) => ({ name: a.name, values: a.values, groups: a.groups }));
   const bindings: Binding[] = [];
   for (const b of scan.value.bindings) {
     if (b.branches.length === 0) {

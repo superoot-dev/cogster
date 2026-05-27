@@ -68,9 +68,16 @@ export const ExprSchema: z.ZodType<Expr> = z.lazy(() =>
   ]),
 );
 
+export const AxisGroupSchema = z.object({
+  name: z.string(),
+  values: z.array(z.string()),
+});
+export type AxisGroup = z.infer<typeof AxisGroupSchema>;
+
 export const AxisSchema = z.object({
   name: z.string(),
   values: z.array(z.string()),
+  groups: z.array(AxisGroupSchema).default([]),
 });
 export type Axis = z.infer<typeof AxisSchema>;
 

@@ -54,6 +54,13 @@ marketing capped = min(marketing budget cap, marketing monthly)
 axis sku = :widget bar :energy bar
 axis channel = :fakemart :indie :amazon :shopify
 
+// axis groups: indented `group :name = :tag :tag` lines after the axis decl.
+// A group resolves to its member tags anywhere a tag is accepted (selectors,
+// branches, matrix rows/cols).
+axis tier = :gold :silver :bronze :tin
+  group :metals = :gold :silver :bronze
+  group :base   = :tin
+
 // one branch per line
 cogs per bar =
   :widget bar  $0.64
@@ -62,11 +69,12 @@ cogs per bar =
 // inline-tagged literal — one-liner
 tier rate = :gold 0.05, :silver 0.08, :bronze 0.10
 
-// 2D markdown-style matrix
+// 2D markdown-style matrix; use `:*` as a row or column header for a
+// default arm that fills any tag not explicitly listed
 price per bar =
-  |               | :fakemart | :indie | :amazon | :shopify
-  | :widget bar   | $1.55     | $1.65  | $2.50   | $1.69
-  | :energy bar   | $1.45     | $1.55  | $2.75   | $1.79
+  |               | :fakemart | :indie | :*
+  | :widget bar   | $1.55     | $1.65  | $2.50
+  | :energy bar   | $1.45     | $1.55  | $2.75
 
 // default-via-RHS — bare value on '=' line is the default arm
 commission rate = 0.07
@@ -92,23 +100,27 @@ by sku = sum revenue over :channel       // also: avg, min, max
 Charts and chart entries live in the source. The UI groups entries by chart key.
 
 ```cogs
-// per-entry: #color.chartKey <binding ref>
+// block form (preferred): indented entries under the chart decl.
+// First token `#color` is optional; omit it for palette walk.
 chart cogs = pie                          // optional: pie | bar (default bar)
+  #amber  recipe cost per bar
+  #blue   packaging cost per bar
+  #purple processing cost per bar
+          shipping cost per bar           // no color = palette walk
 
-#amber.cogs recipe cost per bar
-#blue.cogs packaging cost per bar
-#purple.cogs processing cost per bar
-
-// auto-expand: tagged refs become one series per cell
 chart channels = pie
-#auto.channels profit by channel          // uses palette for distinct slices
+  profit by channel                       // tagged refs auto-expand per cell
 
-// scalar refs work too — palette walk via #auto
-#auto.totals total gross profit
-#auto.totals annual fixed burn
+chart totals
+  total gross profit
+  annual fixed burn
+
+// legacy per-entry form still works:
+#amber.cogs recipe cost per bar
 ```
 
 - Colors: 3- or 6-char hex (`#1f8`, `#f6f6f6`), named (`#red`, `#blue`, `#teal`…), or `#auto` for palette walk
+- In block form, color is optional; omit for palette walk
 - Chart keys are single tokens; refs are full multi-word binding names
 - Default kind: bar. Override with `chart <name> = pie`
 

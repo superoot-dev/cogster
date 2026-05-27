@@ -129,7 +129,7 @@ run("call: getRoundTo", () => {
 run("axis declaration", () => {
   const p = parseOk("axis sku = :widget :energy");
   assert.equal(p.axes.length, 1);
-  assert.deepEqual(p.axes[0], { name: "sku", values: ["widget", "energy"] });
+  assert.deepEqual(p.axes[0], { name: "sku", values: ["widget", "energy"], groups: [] });
 });
 
 run("tagged binding via branches", () => {
@@ -556,6 +556,191 @@ units sold =
   assert.equal(foo.series[1].label, "energy bar");
   assert.equal(foo.series[1].value, 200);
   assert.notEqual(foo.series[0].color, foo.series[1].color);
+});
+
+run("chart block form: indented entries with optional color", () => {
+  const src = `
+a = 10
+b = 20
+c = 30
+chart foo = pie
+  #red    a
+  #1f8    b
+          c
+`;
+  const prog = parseOk(src);
+  assert.equal(prog.charts.length, 3);
+  assert.equal(prog.charts[0].color, "#ef4444");
+  assert.equal(prog.charts[0].chart, "foo");
+  assert.equal(prog.charts[0].ref, "a");
+  assert.equal(prog.charts[1].color, "#11ff88");
+  assert.equal(prog.charts[1].ref, "b");
+  assert.equal(prog.charts[2].color, "#auto");
+  assert.equal(prog.charts[2].ref, "c");
+});
+
+run("chart block ends at unindented line", () => {
+  const src = `
+a = 10
+b = 20
+chart foo = bar
+  #red a
+b doubled = b * 2
+#blue.bar a
+`;
+  const prog = parseOk(src);
+  assert.equal(prog.charts.length, 2);
+  assert.equal(prog.charts[0].chart, "foo");
+  assert.equal(prog.charts[1].chart, "bar");
+  assert.ok(prog.bindings.find((b) => b.name === "b doubled"));
+});
+
+run("chart block: multi-word ref", () => {
+  const src = `
+total revenue = 1000
+chart kpis = bar
+  #green total revenue
+`;
+  const prog = parseOk(src);
+  assert.equal(prog.charts[0].ref, "total revenue");
+});
+
+run("chart decl without kind defaults to bar", () => {
+  const src = `
+a = 10
+b = 20
+chart kpis
+  a
+  b
+`;
+  const prog = parseOk(src);
+  assert.equal(prog.chartConfigs[0].name, "kpis");
+  assert.equal(prog.chartConfigs[0].kind, "bar");
+  assert.equal(prog.charts.length, 2);
+});
+
+run("chart block: unknown color rejected", () => {
+  const src = `
+a = 10
+chart foo = pie
+  #fuchsia a
+`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
+run("axis groups: declared via indented 'group :name = :tags'", () => {
+  const src = `
+axis sku = :my16 :st16 :or16 :pe16 :my30 :st30 :or30 :pe30
+  group :sticks  = :my16 :st16 :or16 :pe16
+  group :pouches = :my30 :st30 :or30 :pe30
+`;
+  const prog = parseOk(src);
+  assert.equal(prog.axes[0].groups.length, 2);
+  assert.equal(prog.axes[0].groups[0].name, "sticks");
+  assert.deepEqual(prog.axes[0].groups[0].values, ["my16", "st16", "or16", "pe16"]);
+});
+
+run("axis groups: expand in branches", () => {
+  const src = `
+axis sku = :a :b :c :d
+  group :first half = :a :b
+
+per sku =
+  :first half  100
+  :c           50
+  :d           25
+`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "per sku", { sku: "a" }), 100);
+  assert.equal(cell(r, "per sku", { sku: "b" }), 100);
+  assert.equal(cell(r, "per sku", { sku: "c" }), 50);
+  assert.equal(cell(r, "per sku", { sku: "d" }), 25);
+});
+
+run("axis groups: expand in selectors and aggregation", () => {
+  const src = `
+axis sku = :a :b :c :d
+  group :sticks = :a :b
+
+units =
+  :a 10
+  :b 20
+  :c 30
+  :d 40
+
+stick total = sum units :sticks over :sku
+`;
+  const r = evalOk(src);
+  assert.equal(val(r, "stick total"), 30);
+});
+
+run("axis groups: member must belong to axis", () => {
+  const src = `
+axis sku = :a :b
+axis channel = :x :y
+  group :bad = :a
+`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
+run("axis groups: name collision with tag rejected", () => {
+  const src = `
+axis sku = :a :b
+  group :a = :a :b
+`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
+run("matrix :* row default", () => {
+  const src = `
+axis sku = :a :b :c
+axis channel = :x :y
+
+price =
+  |     | :x   | :y
+  | :a  | $1   | $2
+  | :*  | $10  | $20
+`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "price", { sku: "a", channel: "x" }), 1);
+  assert.equal(cell(r, "price", { sku: "b", channel: "x" }), 10);
+  assert.equal(cell(r, "price", { sku: "c", channel: "y" }), 20);
+});
+
+run("matrix :* col default", () => {
+  const src = `
+axis sku = :a :b
+axis channel = :x :y :z
+
+price =
+  |     | :x   | :*
+  | :a  | $1   | $99
+  | :b  | $2   | $88
+`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "price", { sku: "a", channel: "x" }), 1);
+  assert.equal(cell(r, "price", { sku: "a", channel: "y" }), 99);
+  assert.equal(cell(r, "price", { sku: "b", channel: "z" }), 88);
+});
+
+run("matrix :* x :* default cell", () => {
+  const src = `
+axis sku = :a :b
+axis channel = :x :y
+
+price =
+  |     | :x   | :*
+  | :a  | $1   | $2
+  | :*  | $5   | $0
+`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "price", { sku: "a", channel: "x" }), 1);
+  assert.equal(cell(r, "price", { sku: "a", channel: "y" }), 2);
+  assert.equal(cell(r, "price", { sku: "b", channel: "x" }), 5);
+  assert.equal(cell(r, "price", { sku: "b", channel: "y" }), 0);
 });
 
 console.log("all tests passed");
