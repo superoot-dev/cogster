@@ -5,12 +5,18 @@
   "license": "Apache-2.0",
   "scripts": {
     "ts": "npx tsx --",
+    "cogs": "npx tsx scripts/cogs.ts",
     "typecheck": "tsc --noEmit",
     "test": "for f in $(find . -name '*.test.ts' -not -path '*/node_modules/*' -not -path './.next/*' | sort); do echo \"Running $f\"; npx tsx \"$f\" || exit 1; done",
     "verify": "yarn typecheck && yarn test"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
+    "@types/yargs": "^17.0.35",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "yargs": "^18.0.0",
+    "zod": "^4.4.3"
   }
 }

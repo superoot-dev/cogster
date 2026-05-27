@@ -1,4 +1,4 @@
-export type UnitDimension = "weight" | "volume" | "count";
+export type UnitDimension = "weight" | "volume" | "count" | "currency" | "time";
 
 type UnitDef = {
   dim: UnitDimension;
@@ -22,6 +22,15 @@ const UNITS: Record<string, UnitDef> = {
   pc: { dim: "count", toBase: 1 },
   pcs: { dim: "count", toBase: 1 },
   dozen: { dim: "count", toBase: 12 },
+
+  usd: { dim: "currency", toBase: 1 },
+
+  second: { dim: "time", toBase: 1 },
+  hour: { dim: "time", toBase: 3600 },
+  day: { dim: "time", toBase: 86400 },
+  week: { dim: "time", toBase: 604800 },
+  month: { dim: "time", toBase: 2629800 },
+  year: { dim: "time", toBase: 31557600 },
 };
 
 const ALIAS: Record<string, string> = {
@@ -47,6 +56,37 @@ const ALIAS: Record<string, string> = {
   "fluid_ounce": "fl_oz",
   "fluid_ounces": "fl_oz",
   fluid_oz: "fl_oz",
+  units: "unit",
+  servings: "unit",
+  serving: "unit",
+  ea: "each",
+
+  $: "usd",
+  dollar: "usd",
+  dollars: "usd",
+
+  s: "second",
+  sec: "second",
+  secs: "second",
+  seconds: "second",
+  hr: "hour",
+  hrs: "hour",
+  hours: "hour",
+  d: "day",
+  days: "day",
+  wk: "week",
+  wks: "week",
+  weeks: "week",
+  mo: "month",
+  mos: "month",
+  months: "month",
+  monthly: "month",
+  yr: "year",
+  yrs: "year",
+  years: "year",
+  yearly: "year",
+  annual: "year",
+  annually: "year",
 };
 
 export function normalizeUnit(unit: string): string {
@@ -74,5 +114,7 @@ export function convertAmount(amount: number, from: string, to: string): Convert
 export function baseUnitFor(dim: UnitDimension): string {
   if (dim === "weight") return "g";
   if (dim === "volume") return "ml";
+  if (dim === "currency") return "usd";
+  if (dim === "time") return "second";
   return "each";
 }

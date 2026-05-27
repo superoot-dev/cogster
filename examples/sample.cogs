@@ -1,0 +1,33 @@
+// pack geometry
+packs per case = 6
+units per pack = 16
+units per case = packs per case * units per pack
+
+// ingredient: ginger
+ginger per serving = 1000 mg
+ginger price = $100 / kg @ 10 kg, $80 / kg @ 20 kg
+ginger cost per serving = ginger per serving * ginger price
+
+// ingredient: lemon
+lemon per serving = 500 mg
+lemon price = $10 / kg @ 100 lb, $5 / kg @ 1000 lb
+lemon cost per serving = lemon per serving * lemon price
+
+// total ingredient cost per case
+ingredients cost per unit = ginger cost per serving + lemon cost per serving
+ingredients cost per case = ingredients cost per unit * units per case
+
+// labor
+bob salary = $10000 per month
+jim salary = $2222 per month
+labor total = bob salary + jim salary
+
+// retail model
+fakemart total stores = 100
+fakemart units per sku per store per week = 16
+fakemart units sold per week = fakemart total stores * fakemart units per sku per store per week
+
+// charts
+[ginger cost per serving, lemon cost per serving] as pie
+[bob salary, jim salary, labor total] as bar
+[fakemart units sold per week] from 2026-01-01 to 2026-12-31 per month as line

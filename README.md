@@ -76,6 +76,34 @@ Any value expression be adjusted with a slider in a UI.
 
 These values are dynamically calculated - everything is an expression but value types
 
-We need to create
+## Try it
 
-1.
+```
+yarn cogs eval examples/sample.cogs
+yarn cogs parse examples/sample.cogs
+```
+
+See [examples/sample.cogs](./examples/sample.cogs) for the syntax in action.
+
+## Canonical IR
+
+Every parsed binding lowers to one shape:
+
+```
+Binding   = { name, expr }
+Expr      = Qty | Ref | Op(+|-|*|/) | Neg | Tiers
+Qty       = { value: number, unit: { num: string[], den: string[] } }
+Tiers     = [{ at: Qty, expr: Expr }]   // step function, sorted asc
+Chart     = { refs: string[], range: { from, to, per }, as }
+```
+
+Time rates (`per month`, `per week`) collapse into the unit's denominator,
+so `$10000 per month + $2000 per month` unifies as `$/month`.
+
+## Syntax constraints
+
+- `name = expr` per line; `//` for comments
+- Identifiers are multi-word phrases (`fakemart units per sku per store per week`)
+- After a number, `per <unit>` and `/<unit>` extend the unit's denominator
+- Tiers: `<expr> @ <qty>, <expr> @ <qty>, ...` — step-based (no interpolation)
+- Charts: `[ref, ref, ...] from <date> to <date> per <time> as <pie|line|bar>`
