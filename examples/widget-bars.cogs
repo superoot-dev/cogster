@@ -15,6 +15,12 @@ honey price = $120 / 30 lb
 dark chocolate price = $175 / 25 lb
 sea salt price = $30 / 50 lb
 
+// --- taxes (almond butter imported from overseas) ---
+us food duty pct = 0.02
+broker fee pct = 0.0035
+almond butter import uplift = 1 + us food duty pct + broker fee pct
+almond butter landed price = almond butter price * almond butter import uplift
+
 // --- recipe (bar-level amounts, with waste applied) ---
 oats waste mult = 1.02
 almond butter waste mult = 1.02
@@ -29,7 +35,7 @@ dark chocolate per bar = 0.015 lb * dark chocolate waste mult
 sea salt per bar = 0.002 lb * sea salt waste mult
 
 oats cost per bar = oats per bar * oats price
-almond butter cost per bar = almond butter per bar * almond butter price
+almond butter cost per bar = almond butter per bar * almond butter landed price
 honey cost per bar = honey per bar * honey price
 dark chocolate cost per bar = dark chocolate per bar * dark chocolate price
 sea salt cost per bar = sea salt per bar * sea salt price
@@ -127,8 +133,91 @@ shopify merchant fee pct = 0.029
 shopify subs net per bar = shopify subs price per bar * (1 - shopify merchant fee pct)
 shopify subs margin per bar = shopify subs net per bar - cogs per bar
 
+// --- sell-in (steady-state annual units per channel) ---
+weeks per year = 52
+months per year = 12
+
+fakemart doors mature = 2400
+fakemart bars per door per week mature = 28
+fakemart bars per year = fakemart doors mature * fakemart bars per door per week mature * weeks per year
+
+indie doors mature = 1200
+indie bars per door per week mature = 32
+indie bars per year = indie doors mature * indie bars per door per week mature * weeks per year
+
+amazon bars per month mature = 15000
+amazon bars per year = amazon bars per month mature * months per year
+
+shopify subs orders per month mature = 1800
+shopify subs bars per order = 21
+shopify subs bars per year = shopify subs orders per month mature * shopify subs bars per order * months per year
+
+total bars per year = fakemart bars per year + indie bars per year + amazon bars per year + shopify subs bars per year
+
+// --- trade plan (Fakemart steady-state stack, MCB on top of OI) ---
+fakemart oi pct = 0.025
+fakemart mcb pct = 0.03
+fakemart scan pct = 0.02
+fakemart spoilage pct = 0.01
+fakemart coop pct = 0.02
+
+fakemart oi rate = fakemart oi pct
+fakemart mcb rate = (1 - fakemart oi pct) * fakemart mcb pct
+fakemart trade pct = fakemart oi rate + fakemart mcb rate + fakemart scan pct + fakemart spoilage pct + fakemart coop pct
+
+// one-time launch costs amortized over assumed lifetime bars
+slotting per door = $25
+slotting total = slotting per door * fakemart doors mature
+free fill bars per door = 4
+free fill total = free fill bars per door * fakemart doors mature * cogs per bar
+
+fakemart lifetime years = 3
+fakemart bars lifetime = fakemart bars per year * fakemart lifetime years
+launch trade per bar = (slotting total + free fill total) / fakemart bars lifetime
+
+// --- gross-to-net (annual, per channel) ---
+fakemart gross sales = fakemart price per bar * fakemart bars per year
+fakemart trade dollars = fakemart gross sales * fakemart trade pct
+fakemart launch dollars = launch trade per bar * fakemart bars per year
+fakemart distributor dollars = fakemart gross sales * fakemart take pct
+fakemart net sales = fakemart gross sales - fakemart trade dollars - fakemart launch dollars - fakemart distributor dollars
+fakemart cogs total = cogs per bar * fakemart bars per year
+fakemart gross profit = fakemart net sales - fakemart cogs total
+fakemart gross margin pct = fakemart gross profit / fakemart gross sales
+
+indie gross sales = indie price per bar * indie bars per year
+indie fee dollars = indie gross sales * faire fee pct
+indie net sales = indie gross sales - indie fee dollars
+indie cogs total = cogs per bar * indie bars per year
+indie gross profit = indie net sales - indie cogs total
+indie gross margin pct = indie gross profit / indie gross sales
+
+amazon gross sales = amazon price per bar * amazon bars per year
+amazon referral dollars = amazon gross sales * amazon referral pct
+amazon fulfillment dollars = (amazon fba per bar + amazon storage per bar) * amazon bars per year
+amazon net sales = amazon gross sales - amazon referral dollars - amazon fulfillment dollars
+amazon cogs total = cogs per bar * amazon bars per year
+amazon gross profit = amazon net sales - amazon cogs total
+amazon gross margin pct = amazon gross profit / amazon gross sales
+
+shopify subs gross sales = shopify subs price per bar * shopify subs bars per year
+shopify subs fee dollars = shopify subs gross sales * shopify merchant fee pct
+shopify subs net sales = shopify subs gross sales - shopify subs fee dollars
+shopify subs cogs total = cogs per bar * shopify subs bars per year
+shopify subs gross profit = shopify subs net sales - shopify subs cogs total
+shopify subs gross margin pct = shopify subs gross profit / shopify subs gross sales
+
+// --- totals ---
+total gross sales = fakemart gross sales + indie gross sales + amazon gross sales + shopify subs gross sales
+total net sales = fakemart net sales + indie net sales + amazon net sales + shopify subs net sales
+total cogs annual = fakemart cogs total + indie cogs total + amazon cogs total + shopify subs cogs total
+total gross profit = total net sales - total cogs annual
+gross margin overall = total gross profit / total gross sales
+
 // --- monthly burn summary ---
 monthly fixed burn = payroll monthly + opex monthly + marketing monthly
+annual fixed burn = monthly fixed burn * 12
+contribution after fixed = total gross profit - annual fixed burn
 
 // --- using shared math functions from lib/functions ---
 marketing budget cap = $5000
