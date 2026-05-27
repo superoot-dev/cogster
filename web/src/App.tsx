@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { appendBinding, buildState, deleteLine, moveLine, nextNewName, setChartColor, setLiteralValue, setRhs, setRowChart } from "./cogsEngine";
+import { appendBinding, buildState, deleteLine, moveLine, nextNewName, renameBinding, setChartColor, setLiteralValue, setRhs, setRowChart, setUnit } from "./cogsEngine";
 import { BindingsPane } from "./BindingsPane";
 import { ChartsPane } from "./ChartsPane";
 
@@ -23,6 +23,12 @@ export function App({ initialSource }: { initialSource: string }) {
   }
   function handleRhsChange(lineIndex: number, rhs: string) {
     setSource(setRhs(source, lineIndex, rhs));
+  }
+  function handleNameChange(oldName: string, newName: string) {
+    setSource(renameBinding(source, oldName, newName));
+  }
+  function handleUnitChange(lineIndex: number, unit: string) {
+    setSource(setUnit(source, lineIndex, unit));
   }
   function handleColorChange(ref: string, chart: string, color: string) {
     setSource(setChartColor(source, ref, chart, color));
@@ -57,6 +63,8 @@ export function App({ initialSource }: { initialSource: string }) {
         bases={bases}
         onValueChange={handleValueChange}
         onRhsChange={handleRhsChange}
+        onNameChange={handleNameChange}
+        onUnitChange={handleUnitChange}
         onColorChange={handleColorChange}
         onChartChange={handleChartChange}
         onReorder={handleReorder}

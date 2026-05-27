@@ -7,6 +7,8 @@ type Props = {
   bases: Record<string, number>;
   onValueChange: (lineIndex: number, value: number) => void;
   onRhsChange: (lineIndex: number, rhs: string) => void;
+  onNameChange: (oldName: string, newName: string) => void;
+  onUnitChange: (lineIndex: number, unit: string) => void;
   onColorChange: (ref: string, chart: string, color: string) => void;
   onChartChange: (ref: string, chartKey: string, color: string) => void;
   onReorder: (from: number, to: number) => void;
@@ -32,7 +34,7 @@ function groupRows(rows: ScalarRow[]): { section: string | null; rows: ScalarRow
   return groups;
 }
 
-export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
+export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, onNameChange, onUnitChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropOn, setDropOn] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -89,6 +91,8 @@ export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, 
                   onDragOver={() => setDropOn(row.lineIndex)}
                   onValueChange={(v) => onValueChange(row.lineIndex, v)}
                   onRhsChange={(s) => onRhsChange(row.lineIndex, s)}
+                  onNameChange={(s) => onNameChange(row.name, s)}
+                  onUnitChange={(s) => onUnitChange(row.lineIndex, s)}
                   onColorChange={(c) => {
                     const ch = chartForRef(state, row.name);
                     if (ch) onColorChange(row.name, ch.chart, c);
@@ -120,6 +124,8 @@ type RowProps = {
   onDragOver: () => void;
   onValueChange: (v: number) => void;
   onRhsChange: (s: string) => void;
+  onNameChange: (s: string) => void;
+  onUnitChange: (s: string) => void;
   onColorChange: (c: string) => void;
   onChartChange: (key: string) => void;
   onDelete: () => void;
@@ -165,7 +171,7 @@ function formatDisplay(n: number): number | string {
   return Number(n.toPrecision(6));
 }
 
-function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEnd, onDragOver, onValueChange, onRhsChange, onColorChange, onChartChange, onDelete }: RowProps) {
+function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEnd, onDragOver, onValueChange, onRhsChange, onNameChange, onUnitChange, onColorChange, onChartChange, onDelete }: RowProps) {
   const max = Math.max(base * 4, 1);
   const step = max < 10 ? 0.01 : max < 1000 ? 0.5 : max / 1000;
   const [dragArmed, setDragArmed] = useState(false);
@@ -174,6 +180,18 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
   function commitRhs() {
     if (rhsDraft !== null && rhsDraft !== row.rhs) onRhsChange(rhsDraft);
     setRhsDraft(null);
+  }
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const nameValue = nameDraft ?? row.name;
+  function commitName() {
+    if (nameDraft !== null && nameDraft.trim() && nameDraft !== row.name) onNameChange(nameDraft);
+    setNameDraft(null);
+  }
+  const [unitDraft, setUnitDraft] = useState<string | null>(null);
+  const unitValue = unitDraft ?? row.unit;
+  function commitUnit() {
+    if (unitDraft !== null && unitDraft !== row.unit) onUnitChange(unitDraft);
+    setUnitDraft(null);
   }
   const [chartDraft, setChartDraft] = useState<string | null>(null);
   const chartValue = chartDraft ?? chart?.chart ?? "";
@@ -198,8 +216,19 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
         onTouchStart={() => setDragArmed(true)}
         onTouchEnd={() => setDragArmed(false)}
       >≡</span>
-      <span className="name" title={row.name}>{row.name}</span>
-      {row.computed ? (
+      <input
+        className="name"
+        type="text"
+        value={nameValue}
+        title={nameValue}
+        onChange={(e) => setNameDraft(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setNameDraft(null); (e.target as HTMLInputElement).blur(); }
+        }}
+      />
+      {row.computed && (
         <input
           className="expr-input"
           type="text"
@@ -212,16 +241,6 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
             if (e.key === "Escape") { setRhsDraft(null); (e.target as HTMLInputElement).blur(); }
           }}
         />
-      ) : (
-        <input
-          className="slider"
-          type="range"
-          min={0}
-          max={max}
-          step={step}
-          value={Math.min(row.value, max)}
-          onChange={(e) => onValueChange(Number(e.target.value))}
-        />
       )}
       <input
         className="val"
@@ -231,7 +250,20 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
         onChange={(e) => onValueChange(Number(e.target.value))}
         onPointerDown={(e) => startScrub(e, row.value, step, row.computed, onValueChange)}
       />
-      <span className="unit" title={row.unit}>{row.unit}</span>
+      <input
+        className="unit"
+        type="text"
+        value={unitValue}
+        title={row.computed ? `${row.unit} (computed)` : row.unit}
+        disabled={row.computed}
+        placeholder="-"
+        onChange={(e) => setUnitDraft(e.target.value)}
+        onBlur={commitUnit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setUnitDraft(null); (e.target as HTMLInputElement).blur(); }
+        }}
+      />
       <input
         className="chart-key"
         type="text"

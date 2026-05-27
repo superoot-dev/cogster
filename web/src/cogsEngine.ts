@@ -162,6 +162,35 @@ export function deleteLine(source: string, lineIndex: number): string {
   return lines.join("\n");
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function renameBinding(source: string, oldName: string, newName: string): string {
+  const trimmedNew = newName.trim().replace(/\s+/g, " ");
+  if (!trimmedNew || trimmedNew === oldName) return source;
+  if (!/^[A-Za-z_][A-Za-z0-9_\- ]*$/.test(trimmedNew)) return source;
+  const escaped = escapeRegex(oldName);
+  // Match the name only where it's not preceded or followed by an identifier
+  // character. Multi-word names (containing spaces) are matched as a whole
+  // phrase. A trailing word character means the ref continues into a longer
+  // binding name — leave those alone.
+  const re = new RegExp(`(?<![A-Za-z0-9_])${escaped}(?![A-Za-z0-9_])`, "g");
+  return source.replace(re, trimmedNew);
+}
+
+const LITERAL_UNIT_LINE = /^(\s*[A-Za-z_][A-Za-z0-9_\- ]*?\s*=\s*\$?-?\d+(?:\.\d+)?)(\s*[^,@\n]*)$/;
+
+export function setUnit(source: string, lineIndex: number, newUnit: string): string {
+  const lines = source.split("\n");
+  const line = lines[lineIndex];
+  const m = line.match(LITERAL_UNIT_LINE);
+  if (!m) return source;
+  const trimmedUnit = newUnit.trim();
+  lines[lineIndex] = trimmedUnit ? `${m[1]} ${trimmedUnit}` : m[1];
+  return lines.join("\n");
+}
+
 export function appendBinding(source: string, name: string, value: number): string {
   const trimmed = source.endsWith("\n") ? source : `${source}\n`;
   return `${trimmed}${name} = ${formatNumber(value)}\n`;
