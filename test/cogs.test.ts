@@ -336,6 +336,87 @@ run("dim mismatch error", () => {
   assert.equal(r.ok, false);
 });
 
+run("inline tagged literal: comma-separated on one line", () => {
+  const src = `
+axis tier = :gold :silver :bronze
+rate = :gold 0.05, :silver 0.08, :bronze 0.10`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "rate", { tier: "gold" }), 0.05);
+  assert.equal(cell(r, "rate", { tier: "silver" }), 0.08);
+  assert.equal(cell(r, "rate", { tier: "bronze" }), 0.10);
+});
+
+run("default via RHS: scalar on '=' line plus branch overrides", () => {
+  const src = `
+axis tier = :gold :silver :bronze
+rate = 0.07
+  :gold     0.05
+  :silver   0.06`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "rate", { tier: "gold" }), 0.05);
+  assert.equal(cell(r, "rate", { tier: "silver" }), 0.06);
+  assert.equal(cell(r, "rate", { tier: "bronze" }), 0.07);
+});
+
+run("relaxed tag chars: digits and hyphens", () => {
+  const src = `
+axis seg = :b2b :tier-1 :q4-2026
+rate =
+  :b2b      0.05
+  :tier-1   0.10
+  :q4-2026  0.15`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "rate", { seg: "b2b" }), 0.05);
+  assert.equal(cell(r, "rate", { seg: "tier-1" }), 0.10);
+  assert.equal(cell(r, "rate", { seg: "q4-2026" }), 0.15);
+});
+
+run("line continuation: binary op at end of line", () => {
+  const src = `
+a = 1 +
+    2 +
+    3
+b = (10 +
+     20) * 2`;
+  const r = evalOk(src);
+  assert.equal(val(r, "a"), 6);
+  assert.equal(val(r, "b"), 60);
+});
+
+run("matrix form: 2D cartesian via markdown table", () => {
+  const src = `
+axis sku = :widget :energy
+axis chan = :fakemart :indie
+
+bars =
+  |          | :fakemart | :indie
+  | :widget  | 3494400   | 1996800
+  | :energy  |  748800   |  686400`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "bars", { sku: "widget", chan: "fakemart" }), 3494400);
+  assert.equal(cell(r, "bars", { sku: "widget", chan: "indie" }), 1996800);
+  assert.equal(cell(r, "bars", { sku: "energy", chan: "fakemart" }), 748800);
+  assert.equal(cell(r, "bars", { sku: "energy", chan: "indie" }), 686400);
+});
+
+run("matrix form: cells can contain expressions", () => {
+  const src = `
+axis sku = :a :b
+axis chan = :x :y
+
+base = $1.50
+mult = 1.10
+
+price =
+  |       | :x        | :y
+  | :a    | base      | base * mult
+  | :b    | base / 2  | base / 2 * mult`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "price", { sku: "a", chan: "x" }), 1.5);
+  assert.ok(Math.abs(cell(r, "price", { sku: "a", chan: "y" }) - 1.65) < 1e-9);
+  assert.equal(cell(r, "price", { sku: "b", chan: "x" }), 0.75);
+});
+
 run("formats qty", () => {
   assert.equal(fmtQty({ value: 100, unit: { num: ["usd"], den: ["kg"] } }), "100 usd/kg");
 });

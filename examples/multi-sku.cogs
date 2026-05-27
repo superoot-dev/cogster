@@ -1,5 +1,5 @@
 // Multi-SKU model — uses axes + tagged values + auto-broadcast.
-// Formulas written ONCE; the engine broadcasts/zips over the SKU and channel axes.
+// Formulas written ONCE; the engine broadcasts/zips over the sku and channel axes.
 
 axis sku = :widget bar :energy bar
 axis channel = :fakemart :indie :amazon :shopify
@@ -20,51 +20,43 @@ import uplift = 1 + us food duty pct + broker fee pct
 almond butter landed price = almond butter price * import uplift
 peanut butter landed price = peanut butter price * import uplift
 
-// --- global: channel rates (apply to any SKU sold there) ---
+// --- global: channel rates ---
 fakemart trade pct = 0.10425
 fakemart take pct = 0.265
 faire fee pct = 0.15
 amazon referral pct = 0.15
 shopify merchant fee pct = 0.029
 
-// --- per-sku COGS (one branch per sku, scalar value) ---
-// derived: ingredient lb * landed price, packed together for readability
+// --- per-channel deduction (single-axis inline literal) ---
+channel deduction pct = :fakemart fakemart trade pct + fakemart take pct, :indie faire fee pct, :amazon amazon referral pct, :shopify shopify merchant fee pct
+
+// --- per-sku COGS (inline-tagged literal; multi-line continuation in each branch) ---
 cogs per bar =
-  :widget bar  0.0510 lb * oats price + 0.01836 lb * almond butter landed price + 0.01224 lb * honey price + 0.01545 lb * dark chocolate price + 0.00202 lb * sea salt price + $0.282
-  :energy bar  0.0450 lb * oat flour price + 0.0200 lb * peanut butter landed price + 0.0100 lb * honey price + 0.0100 lb * dark chocolate price + 0.0020 lb * sea salt price + $0.240
+  :widget bar  0.0510 lb * oats price +
+               0.01836 lb * almond butter landed price +
+               0.01224 lb * honey price +
+               0.01545 lb * dark chocolate price +
+               0.00202 lb * sea salt price + $0.282
+  :energy bar  0.0450 lb * oat flour price +
+               0.0200 lb * peanut butter landed price +
+               0.0100 lb * honey price +
+               0.0100 lb * dark chocolate price +
+               0.0020 lb * sea salt price + $0.240
 
-// --- per-(sku,channel) pricing ---
+// --- per-(sku, channel) pricing — matrix form ---
 price per bar =
-  :widget bar :fakemart  $1.55
-  :widget bar :indie     $1.65
-  :widget bar :amazon    $2.50
-  :widget bar :shopify   $1.69
-  :energy bar :fakemart  $1.45
-  :energy bar :indie     $1.55
-  :energy bar :amazon    $2.75
-  :energy bar :shopify   $1.79
+  |               | :fakemart | :indie | :amazon | :shopify
+  | :widget bar   | $1.55     | $1.65  | $2.50   | $1.69
+  | :energy bar   | $1.45     | $1.55  | $2.75   | $1.79
 
-// --- per-(sku,channel) sell-in (mature steady state) ---
+// --- per-(sku, channel) sell-in — matrix form ---
 bars per year =
-  :widget bar :fakemart  3494400
-  :widget bar :indie     1996800
-  :widget bar :amazon     180000
-  :widget bar :shopify    453600
-  :energy bar :fakemart   748800
-  :energy bar :indie      686400
-  :energy bar :amazon     264000
-  :energy bar :shopify    129600
+  |               | :fakemart | :indie  | :amazon | :shopify
+  | :widget bar   | 3494400   | 1996800 | 180000  | 453600
+  | :energy bar   |  748800   |  686400 | 264000  | 129600
 
-// --- per-channel deduction rate (broadcasts over sku) ---
-channel deduction pct =
-  :fakemart  fakemart trade pct + fakemart take pct
-  :indie     faire fee pct
-  :amazon    amazon referral pct
-  :shopify   shopify merchant fee pct
-
-// --- amazon FBA + storage (channel-specific, broadcasts over sku) ---
-amazon variable per bar =
-  :amazon  $0.405
+// --- amazon fulfillment overhead (broadcast over sku) ---
+amazon variable per bar = :amazon $0.405
 
 // --- G2N waterfall: written ONCE, evaluates per (sku, channel) ---
 gross sales = price per bar * bars per year
@@ -73,7 +65,7 @@ cogs total = cogs per bar * bars per year
 gross profit = net sales - cogs total
 gross margin pct = gross profit / gross sales
 
-// --- pivots: same data, different lens ---
+// --- pivots ---
 profit by sku = sum gross profit over :channel
 profit by channel = sum gross profit over :sku
 total profit = sum gross profit over :sku :channel
@@ -83,6 +75,6 @@ total gross = sum gross sales over :sku :channel
 fixed annual = $532240
 contribution after fixed = total profit - fixed annual
 
-// --- selectors: pull a single cell ---
+// --- selectors ---
 widget fakemart profit = gross profit :widget bar :fakemart
 amazon profit total = sum gross profit :amazon over :sku
