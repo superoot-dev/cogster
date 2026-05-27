@@ -421,6 +421,53 @@ run("formats qty", () => {
   assert.equal(fmtQty({ value: 100, unit: { num: ["usd"], den: ["kg"] } }), "100 usd/kg");
 });
 
+run("rejects space after : in axis decl", () => {
+  const r = parseProgram("axis sku = : widget :energy");
+  assert.equal(r.ok, false);
+});
+
+run("rejects space after : in branch tag", () => {
+  const src = `
+axis sku = :a :b
+price =
+  : a  $10
+  :b  $20`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
+run("rejects space after : in selector", () => {
+  const src = `
+axis sku = :a :b
+price =
+  :a  $10
+  :b  $20
+v = price : a`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
+run("rejects space after : in aggregation axis", () => {
+  const src = `
+axis sku = :a :b
+units =
+  :a  100
+  :b  200
+total = sum units over : sku`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
+run("rejects space in : * wildcard", () => {
+  const src = `
+axis tier = :gold :silver
+rate =
+  :gold  0.05
+  : *    0.10`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
 run("parses sample file", () => {
   const src = readFileSync(join(import.meta.dirname, "..", "examples", "sample.cogs"), "utf8");
   const r = evalOk(src);

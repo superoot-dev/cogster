@@ -146,6 +146,7 @@ commission rate = 0.07
 revenue = price per bar * bars per year
 ```
 
+- Tag syntax is `:tag` — no space allowed between `:` and the name (`: widget` is an error)
 - Tags from the **same axis** on one line = union (`:widget bar :energy bar` = both)
 - Tags from **different axes** on one line = intersection (one specific cell)
 - `:*` on its own = default arm; specific matches win over the wildcard
