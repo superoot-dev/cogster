@@ -78,3 +78,13 @@ contribution after fixed = total profit - fixed annual
 // --- selectors ---
 widget fakemart profit = gross profit :widget bar :fakemart
 amazon profit total = sum gross profit :amazon over :sku
+
+// --- reports ---
+chart skus = pie
+#auto.skus profit by sku
+
+chart channels = pie
+#auto.channels profit by channel
+
+#auto.totals total profit
+#auto.totals contribution after fixed

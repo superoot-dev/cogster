@@ -80,9 +80,27 @@ export const BindingSchema = z.object({
 });
 export type Binding = z.infer<typeof BindingSchema>;
 
+export const ChartEntrySchema = z.object({
+  color: z.string(),
+  chart: z.string(),
+  ref: z.string(),
+});
+export type ChartEntry = z.infer<typeof ChartEntrySchema>;
+
+export const ChartKindSchema = z.enum(["bar", "pie"]);
+export type ChartKind = z.infer<typeof ChartKindSchema>;
+
+export const ChartConfigSchema = z.object({
+  name: z.string(),
+  kind: ChartKindSchema,
+});
+export type ChartConfig = z.infer<typeof ChartConfigSchema>;
+
 export const ProgramSchema = z.object({
   axes: z.array(AxisSchema),
   bindings: z.array(BindingSchema),
+  charts: z.array(ChartEntrySchema),
+  chartConfigs: z.array(ChartConfigSchema),
 });
 export type Program = z.infer<typeof ProgramSchema>;
 

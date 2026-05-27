@@ -6,6 +6,9 @@
   "scripts": {
     "ts": "npx tsx --",
     "cogs": "npx tsx scripts/cogs.ts",
+    "dev": "npx tsx scripts/cogs.ts serve examples/sample.cogs",
+    "build:ui": "vite build",
+    "build:lib": "vite build --config vite.lib.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "for f in $(find . -name '*.test.ts' -not -path '*/node_modules/*' -not -path './.next/*' | sort); do echo \"Running $f\"; npx tsx \"$f\" || exit 1; done",
     "verify": "yarn typecheck && yarn test"
@@ -14,8 +17,12 @@
     "@types/js-yaml": "^4.0.9",
     "@types/json-stable-stringify": "^1.2.0",
     "@types/node": "^24.5.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@types/yargs": "^17.0.35",
-    "typescript": "^5.9.3"
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.10"
   },
   "dependencies": {
     "date-fns": "^4.3.0",
@@ -23,6 +30,10 @@
     "js-yaml": "^4.1.1",
     "json-stable-stringify": "^1.3.0",
     "json5": "^2.2.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-is": "^19.0.0",
+    "recharts": "^3.8.1",
     "yargs": "^18.0.0",
     "zod": "^4.4.3"
   }

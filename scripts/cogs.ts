@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { parseProgram } from "../lib/CogsParser";
 import { evalProgram } from "../lib/CogsEvaluator";
 import { fmtQty } from "../lib/CogsUnits";
+
+const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const argv = yargs(hideBin(process.argv))
   .scriptName("cogs")
@@ -13,10 +18,24 @@ const argv = yargs(hideBin(process.argv))
   .command("parse <file>", "print parsed AST", (y) =>
     y.positional("file", { type: "string", demandOption: true }),
   )
+  .command("serve <file>", "launch web UI for a .cogs file", (y) =>
+    y.positional("file", { type: "string", demandOption: true }),
+  )
   .demandCommand(1)
   .strict()
   .help()
   .parseSync();
+
+const cmdName = (argv as { _: string[] })._[0];
+if (cmdName === "serve") {
+  const file = resolve(process.cwd(), String((argv as Record<string, unknown>).file));
+  const vite = resolve(PKG_ROOT, "node_modules/.bin/vite");
+  const child = spawn(vite, [PKG_ROOT, "--config", resolve(PKG_ROOT, "vite.config.ts")], {
+    stdio: "inherit",
+    env: { ...process.env, COGSTER_FILE: file },
+  });
+  child.on("exit", (code) => process.exit(code ?? 0));
+} else {
 
 const file = String((argv as Record<string, unknown>).file);
 const src = readFileSync(file, "utf8");
@@ -80,4 +99,5 @@ if (useJson) {
       }
     }
   }
+}
 }

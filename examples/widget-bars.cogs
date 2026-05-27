@@ -227,3 +227,55 @@ best channel margin = calcMax(fakemart margin per bar, indie margin per bar, ama
 
 cogs rounded = getRoundTo(cogs per bar, 4)
 
+// --- reports ---
+
+// COGS breakdown per bar (pie)
+chart cogs = pie
+#amber.cogs recipe cost per bar
+#blue.cogs packaging cost per bar
+#purple.cogs processing cost per bar
+
+// Recipe ingredient mix per bar (pie)
+chart recipe = pie
+#f59e0b.recipe oats cost per bar
+#a16207.recipe almond butter cost per bar
+#eab308.recipe honey cost per bar
+#4a1f0a.recipe dark chocolate cost per bar
+#9ca3af.recipe sea salt cost per bar
+
+// Annual sell-in volume by channel (bar)
+#3b82f6.volume fakemart bars per year
+#22c55e.volume indie bars per year
+#f97316.volume amazon bars per year
+#a855f7.volume shopify subs bars per year
+
+// Per-bar contribution margin by channel (bar)
+#3b82f6.margins fakemart margin per bar
+#22c55e.margins indie margin per bar
+#f97316.margins amazon margin per bar
+#a855f7.margins shopify subs margin per bar
+
+// Annual gross profit by channel (bar)
+#3b82f6.profit fakemart gross profit
+#22c55e.profit indie gross profit
+#f97316.profit amazon gross profit
+#a855f7.profit shopify subs gross profit
+
+// Monthly fixed burn breakdown (pie)
+chart burn = pie
+#ef4444.burn payroll monthly
+#f59e0b.burn opex monthly
+#ec4899.burn marketing monthly
+
+// Fakemart trade stack (pie)
+chart trade = pie
+#3b82f6.trade fakemart oi rate
+#06b6d4.trade fakemart mcb rate
+#14b8a6.trade fakemart scan pct
+#84cc16.trade fakemart spoilage pct
+#a855f7.trade fakemart coop pct
+
+// Bottom-line summary (bar)
+#22c55e.summary total gross profit
+#ef4444.summary annual fixed burn
+#3b82f6.summary contribution after fixed

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseProgram } from "../lib/CogsParser";
-import { evalProgram } from "../lib/CogsEvaluator";
+import { evalProgram, renderCharts } from "../lib/CogsEvaluator";
 import { fmtQty } from "../lib/CogsUnits";
 import { CogValue, scalarQty } from "../lib/CogsTypes";
 
@@ -472,6 +472,90 @@ run("parses sample file", () => {
   const src = readFileSync(join(import.meta.dirname, "..", "examples", "sample.cogs"), "utf8");
   const r = evalOk(src);
   assert.equal(val(r, "units per case"), 96);
+});
+
+run("parses chart entries: hex and named colors", () => {
+  const src = `
+a = 10
+b = 20
+#f6f6f6.foo a
+#red.foo b
+#1f8.bar a
+`;
+  const prog = parseOk(src);
+  assert.equal(prog.charts.length, 3);
+  assert.equal(prog.charts[0].color, "#f6f6f6");
+  assert.equal(prog.charts[0].chart, "foo");
+  assert.equal(prog.charts[0].ref, "a");
+  assert.equal(prog.charts[1].color, "#ef4444");
+  assert.equal(prog.charts[2].color, "#11ff88");
+});
+
+run("chart entry with multi-word ref", () => {
+  const src = `
+fakemart total stores = 100
+#red.foo fakemart total stores
+`;
+  const prog = parseOk(src);
+  assert.equal(prog.charts[0].ref, "fakemart total stores");
+});
+
+run("unknown color rejected", () => {
+  const r = parseProgram(`a = 10\n#chartreuse.foo a\n`);
+  assert.equal(r.ok, false);
+});
+
+run("unknown chart ref rejected", () => {
+  const r = parseProgram(`a = 10\n#red.foo b\n`);
+  assert.equal(r.ok, false);
+});
+
+run("renderCharts groups by chart key", () => {
+  const src = `
+a = 10
+b = 20 mg
+#red.foo a
+#blue.foo b
+#green.bar a
+`;
+  const prog = parseOk(src);
+  const evald = evalProgram(prog);
+  assert.equal(evald.ok, true);
+  if (!evald.ok) return;
+  const r = renderCharts(prog, evald.value);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.value.length, 2);
+  const foo = r.value.find((c) => c.chart === "foo")!;
+  assert.equal(foo.series.length, 2);
+  assert.equal(foo.series[0].label, "a");
+  assert.equal(foo.series[0].value, 10);
+  assert.equal(foo.series[1].value, 20);
+  assert.equal(foo.series[1].unit, "mg");
+});
+
+run("auto color + tagged ref expands into per-cell series", () => {
+  const src = `
+axis sku = :widget bar :energy bar
+units sold =
+  :widget bar  100
+  :energy bar  200
+#auto.foo units sold
+`;
+  const prog = parseOk(src);
+  const evald = evalProgram(prog);
+  assert.equal(evald.ok, true);
+  if (!evald.ok) return;
+  const r = renderCharts(prog, evald.value);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const foo = r.value.find((c) => c.chart === "foo")!;
+  assert.equal(foo.series.length, 2);
+  assert.equal(foo.series[0].label, "widget bar");
+  assert.equal(foo.series[0].value, 100);
+  assert.equal(foo.series[1].label, "energy bar");
+  assert.equal(foo.series[1].value, 200);
+  assert.notEqual(foo.series[0].color, foo.series[1].color);
 });
 
 console.log("all tests passed");

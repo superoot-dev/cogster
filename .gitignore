@@ -12,3 +12,4 @@ node_modules
 web/.open-next
 .github
 .msgmon/*
+dist/

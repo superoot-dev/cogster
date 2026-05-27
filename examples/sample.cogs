@@ -27,3 +27,15 @@ fakemart total stores = 100
 fakemart units per sku per store per week = 16
 fakemart units sold per week = fakemart total stores * fakemart units per sku per store per week
 
+// define a chart called 'foo'
+#f6f6f6.foo fakemart total stores
+#red.foo fakemart units sold per week
+
+// define another chart called 'bar'
+#blue.bar labor total
+#1f8.bar ingredients cost per case
+
+// pie chart of ingredient mix
+chart mix = pie
+#green.mix ginger cost per serving
+#orange.mix lemon cost per serving

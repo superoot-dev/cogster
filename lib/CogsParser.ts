@@ -1,6 +1,7 @@
 import { Result, err, ok } from "./CoreTypings";
-import { AggOp, Axis, BranchCase, Binding, Expr, Program, Qty, TagSet, Unit } from "./CogsTypes";
+import { AggOp, Axis, BranchCase, Binding, ChartConfig, ChartEntry, ChartKind, Expr, Program, Qty, TagSet, Unit } from "./CogsTypes";
 import { parseUnit } from "./CogsUnits";
+import { resolveColor } from "./CogsColors";
 
 type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "$" | ":";
 type Tok =
@@ -406,6 +407,26 @@ function parseBranchTags(src: string, ctx: Ctx): Result<{ tags: TagSet; rest: st
 
 type RawAxis = { name: string; values: string[] };
 type RawBinding = { name: string; rhs: string; branches: string[] };
+type RawChart = { color: string; chart: string; ref: string };
+type RawChartConfig = { name: string; kind: ChartKind };
+const CHART_CONFIG_LINE = /^chart\s+([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(bar|pie)\s*$/;
+
+function parseChartConfigLine(line: string): Result<RawChartConfig, string> {
+  const m = line.match(CHART_CONFIG_LINE);
+  if (!m) return err(`bad chart config (expected 'chart <name> = bar|pie'): '${line}'`);
+  return ok({ name: m[1], kind: m[2] as ChartKind });
+}
+const CHART_LINE = /^#([A-Za-z0-9]+)\.([A-Za-z_][A-Za-z0-9_-]*)\s+(.+?)\s*$/;
+
+function parseChartLine(line: string): Result<RawChart, string> {
+  const m = line.match(CHART_LINE);
+  if (!m) return err(`bad chart line: '${line}'`);
+  const color = resolveColor(m[1]);
+  if (!color) return err(`unknown color '#${m[1]}'`);
+  const ref = collapseSpaces(m[3]);
+  if (!ref) return err(`chart line missing binding reference`);
+  return ok({ color, chart: m[2], ref });
+}
 
 function isBranchLine(line: string): boolean {
   const t = line.trimStart();
@@ -429,7 +450,7 @@ function parseAxisLine(line: string): Result<RawAxis, string> {
   return ok({ name, values: parts });
 }
 
-type ScanResult = { axes: RawAxis[]; bindings: RawBinding[] };
+type ScanResult = { axes: RawAxis[]; bindings: RawBinding[]; charts: RawChart[]; chartConfigs: RawChartConfig[] };
 
 const CONTINUATION_TAIL = /[+\-*/(,]$/;
 
@@ -487,10 +508,26 @@ function scanLines(src: string): Result<ScanResult, string> {
   const lines = clean.split("\n");
   const axes: RawAxis[] = [];
   const bindings: RawBinding[] = [];
+  const charts: RawChart[] = [];
+  const chartConfigs: RawChartConfig[] = [];
   let i = 0;
   while (i < lines.length) {
     const trimmed = lines[i].trim();
     if (!trimmed) {
+      i += 1;
+      continue;
+    }
+    if (trimmed.startsWith("#")) {
+      const ch = parseChartLine(trimmed);
+      if (!ch.ok) return ch;
+      charts.push(ch.value);
+      i += 1;
+      continue;
+    }
+    if (trimmed.startsWith("chart ")) {
+      const cc = parseChartConfigLine(trimmed);
+      if (!cc.ok) return cc;
+      chartConfigs.push(cc.value);
       i += 1;
       continue;
     }
@@ -556,7 +593,7 @@ function scanLines(src: string): Result<ScanResult, string> {
     }
     bindings.push({ name, rhs, branches });
   }
-  return ok({ axes, bindings });
+  return ok({ axes, bindings, charts, chartConfigs });
 }
 
 function buildCtx(scan: ScanResult): Result<Ctx, string> {
@@ -611,5 +648,11 @@ export function parseProgram(src: string): Result<Program, string> {
     }
     bindings.push({ name: b.name, expr: { kind: "branches", cases } });
   }
-  return ok({ axes, bindings });
+  const charts: ChartEntry[] = [];
+  for (const ch of scan.value.charts) {
+    if (!ctx.names.has(ch.ref)) return err(`chart entry references unknown binding '${ch.ref}'`);
+    charts.push({ color: ch.color, chart: ch.chart, ref: ch.ref });
+  }
+  const chartConfigs: ChartConfig[] = scan.value.chartConfigs.map((c) => ({ name: c.name, kind: c.kind }));
+  return ok({ axes, bindings, charts, chartConfigs });
 }

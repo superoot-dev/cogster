@@ -5,6 +5,7 @@ import {
   Binding,
   BranchCase,
   Cell,
+  ChartKind,
   CogValue,
   DIMENSIONLESS,
   Expr,
@@ -14,7 +15,7 @@ import {
   scalarQty,
   scalarValue,
 } from "./CogsTypes";
-import { addQty, divQty, mulQty, negQty, subQty } from "./CogsUnits";
+import { addQty, divQty, fmtUnit, mulQty, negQty, subQty } from "./CogsUnits";
 import { STDLIB, buildEvalFunctions, ExprEvalFunc } from "./ScriptEvaluator";
 
 const FNS: Record<string, ExprEvalFunc> = { ...buildEvalFunctions(), ...STDLIB };
@@ -270,4 +271,51 @@ export function evalProgram(prog: Program): Result<Map<string, CogValue>, string
     if (!r.ok) return err(`in '${b.name}': ${r.error}`);
   }
   return ok(env.cache);
+}
+
+export type RenderedSeries = {
+  label: string;
+  color: string;
+  value: number;
+  unit: string;
+};
+
+export type RenderedChart = {
+  chart: string;
+  kind: ChartKind;
+  series: RenderedSeries[];
+};
+
+const AUTO_PALETTE = [
+  "#3b82f6", "#22c55e", "#f97316", "#a855f7", "#06b6d4",
+  "#eab308", "#ef4444", "#14b8a6", "#ec4899", "#84cc16",
+  "#6366f1", "#f59e0b",
+];
+
+export function renderCharts(prog: Program, values: Map<string, CogValue>): Result<RenderedChart[], string> {
+  const groups = new Map<string, RenderedSeries[]>();
+  for (const ch of prog.charts) {
+    const v = values.get(ch.ref);
+    if (!v) return err(`chart entry references unknown binding '${ch.ref}'`);
+    if (!groups.has(ch.chart)) groups.set(ch.chart, []);
+    const target = groups.get(ch.chart)!;
+    const auto = ch.color === "#auto";
+    const sq = scalarQty(v);
+    if (sq !== null) {
+      const color = auto ? AUTO_PALETTE[target.length % AUTO_PALETTE.length] : ch.color;
+      target.push({ label: ch.ref, color, value: sq.value, unit: fmtUnit(sq.unit) });
+      continue;
+    }
+    for (let i = 0; i < v.cells.length; i += 1) {
+      const cell = v.cells[i];
+      const tagLabel = v.axes.map((a) => cell.at[a]).join(" / ");
+      const color = auto ? AUTO_PALETTE[(target.length + i) % AUTO_PALETTE.length] : ch.color;
+      target.push({ label: tagLabel, color, value: cell.qty.value, unit: fmtUnit(cell.qty.unit) });
+    }
+  }
+  const kinds = new Map<string, ChartKind>();
+  for (const c of prog.chartConfigs) kinds.set(c.name, c.kind);
+  const out: RenderedChart[] = [];
+  for (const [chart, series] of groups) out.push({ chart, kind: kinds.get(chart) ?? "bar", series });
+  return ok(out);
 }
