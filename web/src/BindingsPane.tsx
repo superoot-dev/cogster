@@ -171,10 +171,18 @@ function formatDisplay(n: number): number | string {
   return Number(n.toPrecision(6));
 }
 
+function formatCellValue(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  if (Number.isInteger(n)) return n.toString();
+  return Number(n.toPrecision(6)).toString();
+}
+
 function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEnd, onDragOver, onValueChange, onRhsChange, onNameChange, onUnitChange, onColorChange, onChartChange, onDelete }: RowProps) {
   const max = Math.max(base * 4, 1);
   const step = max < 10 ? 0.01 : max < 1000 ? 0.5 : max / 1000;
   const [dragArmed, setDragArmed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const tagged = row.axes.length > 0;
   const [rhsDraft, setRhsDraft] = useState<string | null>(null);
   const rhsValue = rhsDraft ?? row.rhs;
   function commitRhs() {
@@ -200,6 +208,33 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
     if (chartDraft !== null && chartDraft !== current) onChartChange(chartDraft);
     setChartDraft(null);
   }
+  return (
+    <>
+    {renderRow()}
+    {tagged && expanded && (
+      <div className="cells-panel">
+        <table className="cells-table">
+          <thead>
+            <tr>{row.axes.map((a) => <th key={a}>{a}</th>)}<th className="cells-val">value</th><th className="cells-unit">unit</th></tr>
+          </thead>
+          <tbody>
+            {row.cells.map((c, i) => {
+              const parts = c.label.split(" / ");
+              return (
+                <tr key={i}>
+                  {parts.map((p, j) => <td key={j}>{p}</td>)}
+                  <td className="cells-val">{formatCellValue(c.value)}</td>
+                  <td className="cells-unit">{c.unit}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+    </>
+  );
+  function renderRow() {
   return (
     <div
       className={`row ${row.computed ? "computed" : ""} ${isDragging ? "dragging" : ""} ${isDropTarget ? "drop-target" : ""}`}
@@ -242,14 +277,22 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
           }}
         />
       )}
-      <input
-        className="val"
-        type="number"
-        value={formatDisplay(row.value)}
-        disabled={row.computed}
-        onChange={(e) => onValueChange(Number(e.target.value))}
-        onPointerDown={(e) => startScrub(e, row.value, step, row.computed, onValueChange)}
-      />
+      {tagged ? (
+        <button
+          className="val val-tagged"
+          onClick={() => setExpanded((x) => !x)}
+          title={`${row.cells.length} cells across ${row.axes.join(" / ")}`}
+        >{expanded ? "▾" : "▸"} {row.cells.length}</button>
+      ) : (
+        <input
+          className="val"
+          type="number"
+          value={formatDisplay(row.value)}
+          disabled={row.computed}
+          onChange={(e) => onValueChange(Number(e.target.value))}
+          onPointerDown={(e) => startScrub(e, row.value, step, row.computed, onValueChange)}
+        />
+      )}
       <input
         className="unit"
         type="text"
@@ -288,4 +331,5 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
       <button className="del" onClick={onDelete} title="delete">×</button>
     </div>
   );
+  }
 }

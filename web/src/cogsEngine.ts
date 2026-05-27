@@ -1,6 +1,6 @@
 import { parseProgram } from "../../lib/CogsParser";
 import { evalProgram, renderCharts, RenderedChart } from "../../lib/CogsEvaluator";
-import { Binding, CogValue, Program, Qty, scalarQty } from "../../lib/CogsTypes";
+import { Binding, Cell, CogValue, Program, Qty, scalarQty } from "../../lib/CogsTypes";
 import { fmtUnit } from "../../lib/CogsUnits";
 
 export type ScalarRow = {
@@ -13,6 +13,8 @@ export type ScalarRow = {
   computed: boolean;
   rhs: string;
   section: string | null;
+  axes: string[];
+  cells: { label: string; value: number; unit: string }[];
 };
 
 export type EngineState = {
@@ -71,7 +73,7 @@ function fallbackRows(source: string): ScalarRow[] {
     const name = m[1].trim().replace(/\s+/g, " ");
     if (seen.has(name)) continue;
     seen.add(name);
-    rows.push({ name, lineIndex: i, baseValue: 0, value: NaN, unit: "", display: "?", computed: true, rhs: m[2], section: sections[i] });
+    rows.push({ name, lineIndex: i, baseValue: 0, value: NaN, unit: "", display: "?", computed: true, rhs: m[2], section: sections[i], axes: [], cells: [] });
   }
   return rows;
 }
@@ -94,22 +96,46 @@ export function buildState(source: string): EngineState {
   for (const b of program.bindings) {
     const v = values.get(b.name);
     if (!v) continue;
-    const q = scalarQty(v);
-    if (q === null) continue;
     const lineIndex = findLineIndex(lines, b.name);
     const isLiteral = b.expr.kind === "qty";
-    const baseValue = isLiteral && b.expr.kind === "qty" ? b.expr.qty.value : q.value;
     const rhs = lineIndex >= 0 ? extractRhs(lines[lineIndex]) : "";
+    const section = lineIndex >= 0 ? sections[lineIndex] : null;
+    const q = scalarQty(v);
+    if (q !== null) {
+      const baseValue = isLiteral && b.expr.kind === "qty" ? b.expr.qty.value : q.value;
+      rows.push({
+        name: b.name,
+        lineIndex,
+        baseValue,
+        value: q.value,
+        unit: fmtUnit(q.unit),
+        display: q.value.toString(),
+        computed: !isLiteral,
+        rhs,
+        section,
+        axes: [],
+        cells: [],
+      });
+      continue;
+    }
+    const repUnit = v.cells[0]?.qty.unit ?? { num: [], den: [] };
+    const cellRows = v.cells.map((c: Cell) => ({
+      label: v.axes.map((a) => c.at[a]).join(" / "),
+      value: c.qty.value,
+      unit: fmtUnit(c.qty.unit),
+    }));
     rows.push({
       name: b.name,
       lineIndex,
-      baseValue,
-      value: q.value,
-      unit: fmtUnit(q.unit),
-      display: q.value.toString(),
-      computed: !isLiteral,
+      baseValue: NaN,
+      value: NaN,
+      unit: fmtUnit(repUnit),
+      display: "",
+      computed: true,
       rhs,
-      section: lineIndex >= 0 ? sections[lineIndex] : null,
+      section,
+      axes: v.axes,
+      cells: cellRows,
     });
   }
   return {
