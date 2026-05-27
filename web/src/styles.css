@@ -201,7 +201,7 @@ html, body, #root {
   color: var(--muted);
 }
 
-.row .val:not(:disabled):not(:focus) {
+.row .val:not(:disabled):not(:focus):not(.val-tagged) {
   cursor: ew-resize;
 }
 
