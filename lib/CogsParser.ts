@@ -278,6 +278,25 @@ function parseAggregation(c: Cursor, ctx: Ctx, op: AggOp): Result<Expr, string> 
   return ok({ kind: "aggregate", op, expr: inner.value, axes: axes.value });
 }
 
+function tokenAfterMatchingParenIsOver(c: Cursor, parenOffset: number): boolean {
+  const open = c.toks[c.i + parenOffset];
+  if (!open || open.kind !== "op" || open.value !== "(") return false;
+  let depth = 0;
+  for (let j = c.i + parenOffset; j < c.toks.length; j += 1) {
+    const t = c.toks[j];
+    if (t.kind !== "op") continue;
+    if (t.value === "(") depth += 1;
+    else if (t.value === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        const next = c.toks[j + 1];
+        return !!next && next.kind === "word" && next.value === "over";
+      }
+    }
+  }
+  return false;
+}
+
 function parseFactor(c: Cursor, ctx: Ctx): Result<Expr, string> {
   const t = peek(c);
   if (!t) return err("unexpected end of expression");
@@ -303,10 +322,13 @@ function parseFactor(c: Cursor, ctx: Ctx): Result<Expr, string> {
   if (t.kind === "word") {
     const next = peek(c, 1);
     if (next?.kind === "op" && next.value === "(") {
-      take(c);
-      const args = parseCallArgs(c, ctx);
-      if (!args.ok) return args;
-      return wrapWithSelector(c, ctx, { kind: "call", name: t.value, args: args.value });
+      const isAggParen = t.value in AGG_OPS && tokenAfterMatchingParenIsOver(c, 1);
+      if (!isAggParen) {
+        take(c);
+        const args = parseCallArgs(c, ctx);
+        if (!args.ok) return args;
+        return wrapWithSelector(c, ctx, { kind: "call", name: t.value, args: args.value });
+      }
     }
     if (t.value in AGG_OPS) {
       take(c);

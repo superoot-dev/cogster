@@ -726,6 +726,46 @@ price =
   assert.equal(cell(r, "price", { sku: "b", channel: "z" }), 88);
 });
 
+run("sum (...) over :axis parses as aggregation when followed by over", () => {
+  const src = `
+axis b = :x :y :z
+units =
+  :x 10
+  :y 20
+  :z 30
+mix =
+  :x 0.5
+  :y 0.3
+  :z 0.2
+weighted avg = sum (units * mix) over :b
+`;
+  const r = evalOk(src);
+  assert.ok(approx(val(r, "weighted avg"), 10 * 0.5 + 20 * 0.3 + 30 * 0.2));
+});
+
+run("min(a, b) still parses as function call (no 'over' after)", () => {
+  const src = `
+cap = 100
+spend = 75
+clamped = min(cap, spend)
+`;
+  const r = evalOk(src);
+  assert.equal(val(r, "clamped"), 75);
+});
+
+run("min (x) over :ax parses as aggregation", () => {
+  const src = `
+axis ax = :a :b :c
+v =
+  :a 10
+  :b 5
+  :c 20
+lowest = min (v) over :ax
+`;
+  const r = evalOk(src);
+  assert.equal(val(r, "lowest"), 5);
+});
+
 run("matrix :* x :* default cell", () => {
   const src = `
 axis sku = :a :b
