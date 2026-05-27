@@ -766,6 +766,33 @@ lowest = min (v) over :ax
   assert.equal(val(r, "lowest"), 5);
 });
 
+run("parseQty yields to ref names after '/' (no parens needed)", () => {
+  const src = `
+sticks per caddy = 16
+caddy cost per unit = $1.00 / sticks per caddy
+`;
+  const r = evalOk(src);
+  assert.ok(approx(val(r, "caddy cost per unit"), 1 / 16));
+});
+
+run("parseQty: nested ref divisors", () => {
+  const src = `
+inner = 8
+units per case = 96
+units per master case = inner * units per case
+case cost per unit = $0.50 / units per case
+master cost per unit = $1.00 / units per master case
+`;
+  const r = evalOk(src);
+  assert.ok(approx(val(r, "case cost per unit"), 0.5 / 96));
+  assert.ok(approx(val(r, "master cost per unit"), 1 / (8 * 96)));
+});
+
+run("parseQty still parses literal units (`$1.00 / kg`)", () => {
+  const r = evalOk("price = $1.00 / kg\nfor mass = price * 5 kg");
+  assert.ok(approx(val(r, "for mass"), 5));
+});
+
 run("matrix :* x :* default cell", () => {
   const src = `
 axis sku = :a :b

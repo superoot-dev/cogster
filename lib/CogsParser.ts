@@ -101,7 +101,23 @@ type Ctx = {
   groupMembers: Map<string, string[]>;
 };
 
-function parseQty(c: Cursor): Result<Qty, string> {
+function tokensStartARef(c: Cursor, offset: number, ctx: Ctx | null): boolean {
+  if (!ctx) return false;
+  const startI = c.i + offset;
+  const words: string[] = [];
+  for (let i = startI; i < c.toks.length; i += 1) {
+    const t = c.toks[i];
+    if (t.kind !== "word") break;
+    if (RESERVED_WORDS.has(t.value)) break;
+    words.push(t.value);
+  }
+  for (let k = words.length; k > 0; k -= 1) {
+    if (ctx.names.has(words.slice(0, k).join(" "))) return true;
+  }
+  return false;
+}
+
+function parseQty(c: Cursor, ctx: Ctx | null = null): Result<Qty, string> {
   let currency = false;
   const t = peek(c);
   if (isOp(t, "$")) {
@@ -119,6 +135,10 @@ function parseQty(c: Cursor): Result<Qty, string> {
     if (p.kind === "op" && p.value === "/") {
       const nx = peek(c, 1);
       if (nx?.kind === "word" && !RESERVED_WORDS.has(nx.value)) {
+        // Yield to the expression parser when the divisor is a known
+        // binding reference — `$1.00 / sticks per caddy` should divide,
+        // not parse as `usd / sticks per caddy` as a unit.
+        if (tokensStartARef(c, 1, ctx)) break;
         unitTokens.push("/");
         take(c);
         lastWasDiv = true;
@@ -139,6 +159,10 @@ function parseQty(c: Cursor): Result<Qty, string> {
         break;
       }
       if (lastWasDiv || unitTokens.length === 0 || unitTokens[unitTokens.length - 1] !== p.value) {
+        // Same yield-to-ref rule for the standalone word position: if
+        // we've already collected a unit and the next words form a
+        // known binding, stop unit collection.
+        if (lastWasDiv && tokensStartARef(c, 0, ctx)) break;
         unitTokens.push(p.value);
         take(c);
         lastWasDiv = false;
@@ -315,7 +339,7 @@ function parseFactor(c: Cursor, ctx: Ctx): Result<Expr, string> {
     return wrapWithSelector(c, ctx, inner.value);
   }
   if (t.kind === "num" || isOp(t, "$")) {
-    const q = parseQty(c);
+    const q = parseQty(c, ctx);
     if (!q.ok) return q;
     return ok({ kind: "qty", qty: q.value });
   }
@@ -388,7 +412,7 @@ function parseTierBody(c: Cursor, ctx: Ctx): Result<Expr, string> {
   if (!first.ok) return first;
   if (!isOp(peek(c), "@")) return first;
   take(c);
-  const firstAt = parseQty(c);
+  const firstAt = parseQty(c, ctx);
   if (!firstAt.ok) return firstAt;
   segments.push({ at: firstAt.value, expr: first.value });
   while (isOp(peek(c), ",")) {
@@ -397,7 +421,7 @@ function parseTierBody(c: Cursor, ctx: Ctx): Result<Expr, string> {
     if (!expr.ok) return expr;
     if (!isOp(peek(c), "@")) return err(`expected '@' after tier expression at ${peek(c)?.pos ?? "EOF"}`);
     take(c);
-    const at = parseQty(c);
+    const at = parseQty(c, ctx);
     if (!at.ok) return at;
     segments.push({ at: at.value, expr: expr.value });
   }

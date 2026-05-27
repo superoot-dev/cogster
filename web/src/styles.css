@@ -280,6 +280,59 @@ html, body, #root {
   font-size: 13px;
 }
 
+.series-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.series-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.series-table tr:last-child td { border-bottom: none; }
+.series-table .total-row { font-weight: 700; }
+.series-table .total-row td { border-top: 1px solid var(--border); }
+
+.series-table .swatch-cell { width: 14px; padding-right: 0; }
+.series-table .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.series-table .label-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+  width: 100%;
+}
+
+.series-table .val-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.series-table .unit-cell {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.series-table .share-cell {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  width: 48px;
+}
+
 .error {
   color: var(--danger);
   background: #fef2f2;
