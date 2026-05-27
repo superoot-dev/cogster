@@ -1,0 +1,26 @@
+{
+  "name": "cogs-syntax",
+  "displayName": "Cogs Syntax",
+  "description": "Syntax highlighting for .cogs files",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "cogs",
+        "aliases": ["Cogs", "cogs"],
+        "extensions": [".cogs"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cogs",
+        "scopeName": "source.cogs",
+        "path": "./syntaxes/cogs.tmLanguage.json"
+      }
+    ]
+  }
+}
