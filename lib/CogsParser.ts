@@ -193,8 +193,12 @@ type TagParse = { kind: "wildcard" } | { kind: "tag"; axis: string; value: strin
 
 function parseTagAfterColon(c: Cursor, ctx: Ctx): Result<TagParse, string> {
   const colon = take(c);
-  if (!isOp(colon, ":")) return err(`expected ':' at ${colon?.pos ?? "EOF"}`);
-  if (isOp(peek(c), "*")) {
+  if (!colon || !isOp(colon, ":")) return err(`expected ':' at ${colon?.pos ?? "EOF"}`);
+  const next = peek(c);
+  if (next && next.pos !== colon.pos + 1) {
+    return err(`no space allowed after ':' at ${colon.pos}`);
+  }
+  if (isOp(next, "*")) {
     take(c);
     return ok({ kind: "wildcard" });
   }
@@ -401,7 +405,13 @@ function parseAxisLine(line: string): Result<RawAxis, string> {
   const name = collapseSpaces(m[1]);
   const valsStr = m[2].trim();
   if (!valsStr.startsWith(":")) return err(`axis '${name}' values must start with ':', got '${valsStr}'`);
-  const parts = valsStr.split(/\s*:/).slice(1).map(collapseSpaces).filter(Boolean);
+  const raw = valsStr.split(":").slice(1);
+  const parts: string[] = [];
+  for (const p of raw) {
+    if (/^\s/.test(p)) return err(`axis '${name}': no space allowed after ':'`);
+    const v = collapseSpaces(p);
+    if (v) parts.push(v);
+  }
   if (parts.length === 0) return err(`axis '${name}' has no values`);
   return ok({ name, values: parts });
 }
