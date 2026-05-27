@@ -121,7 +121,7 @@ html, body, #root {
 
 .row {
   display: grid;
-  grid-template-columns: 16px minmax(220px, 2fr) minmax(0, 1fr) 90px 80px 60px 18px 18px;
+  grid-template-columns: 16px minmax(180px, 1fr) minmax(220px, 2fr) 90px 80px 60px 18px 18px;
   gap: 6px;
   align-items: center;
   padding: 4px 4px;
@@ -172,6 +172,7 @@ html, body, #root {
   font-size: 11px;
   color: var(--muted);
   width: 100%;
+  min-width: 0;
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 2px 6px;
