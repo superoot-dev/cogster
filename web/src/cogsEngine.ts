@@ -172,12 +172,22 @@ function parseBranchLine(line: string): BranchParts | null {
 function bindingBlockRange(lines: string[], startLine: number): { firstBranch: number; lastBranch: number } {
   let firstBranch = -1;
   let lastBranch = startLine;
+  let prevContinues = false;
   for (let i = startLine + 1; i < lines.length; i += 1) {
-    const t = lines[i].trim();
+    const raw = lines[i];
+    const t = raw.trim();
     if (!t) continue;
-    if (t.startsWith(":") || t.startsWith("|")) {
+    const isBranch = t.startsWith(":") || t.startsWith("|");
+    const isIndented = /^\s/.test(raw);
+    if (isBranch) {
       if (firstBranch < 0) firstBranch = i;
       lastBranch = i;
+      prevContinues = t.endsWith(",");
+      continue;
+    }
+    if (prevContinues && isIndented) {
+      lastBranch = i;
+      prevContinues = t.endsWith(",");
       continue;
     }
     break;
@@ -232,7 +242,15 @@ export function setCellValue(
     if (!tagsMatchExactly(parts.rawTags)) continue;
     const useCurrency = parts.value.trim().startsWith("$") || currency;
     const formatted = `${useCurrency ? "$" : ""}${formatCellNumber(newValue)}`;
-    lines[i] = `${lines[i].slice(0, parts.valueStart)}${formatted}`;
+    let endLine = i;
+    while (endLine + 1 < lines.length && lines[endLine].trimEnd().endsWith(",")) {
+      const nextTrim = lines[endLine + 1].trim();
+      if (!nextTrim || nextTrim.startsWith(":") || nextTrim.startsWith("|")) break;
+      if (!/^\s/.test(lines[endLine + 1])) break;
+      endLine += 1;
+    }
+    const replacement = `${lines[i].slice(0, parts.valueStart)}${formatted}`;
+    lines.splice(i, endLine - i + 1, replacement);
     return lines.join("\n");
   }
 

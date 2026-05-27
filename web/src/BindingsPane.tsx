@@ -189,11 +189,10 @@ type CellRowProps = {
 function CellRow({ axes, cell, onValueChange }: CellRowProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const display = draft ?? formatCellValue(cell.value);
-  function commit() {
-    if (draft === null) return;
-    const n = Number(draft);
+  function handleChange(v: string) {
+    setDraft(v);
+    const n = Number(v);
     if (Number.isFinite(n) && n !== cell.value) onValueChange(cell.at, n, cell.currency);
-    setDraft(null);
   }
   return (
     <tr>
@@ -203,8 +202,8 @@ function CellRow({ axes, cell, onValueChange }: CellRowProps) {
           className="cell-val-input"
           type="number"
           value={display}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
+          onChange={(e) => handleChange(e.target.value)}
+          onBlur={() => setDraft(null)}
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             if (e.key === "Escape") { setDraft(null); (e.target as HTMLInputElement).blur(); }
