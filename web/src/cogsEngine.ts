@@ -24,7 +24,7 @@ export type EngineState = {
   error: string | null;
 };
 
-const LITERAL_LINE = /^(\s*)([A-Za-z_][A-Za-z0-9_\- ]*?)\s*=\s*(\$?)(-?\d+(?:\.\d+)?)(.*)$/;
+const LITERAL_LINE = /^(\s*)([A-Za-z_][A-Za-z0-9_\- ]*?)\s*=\s*(\$?)(-?(?:\d+(?:\.\d*)?|\.\d+))(.*)$/;
 
 function extractRhs(line: string): string {
   const eq = line.indexOf("=");

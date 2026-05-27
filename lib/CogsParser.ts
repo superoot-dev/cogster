@@ -325,6 +325,15 @@ function parseFactor(c: Cursor, ctx: Ctx): Result<Expr, string> {
   const t = peek(c);
   if (!t) return err("unexpected end of expression");
   if (isOp(t, "-")) {
+    const nx = peek(c, 1);
+    // Fold leading `-` into number / currency literals (so `-1`, `-.5`,
+    // `-$3.50` parse as qty with a negative value, not as neg(qty)).
+    if (nx && (nx.kind === "num" || (nx.kind === "op" && nx.value === "$"))) {
+      take(c);
+      const q = parseQty(c, ctx);
+      if (!q.ok) return q;
+      return ok({ kind: "qty", qty: { value: -q.value.value, unit: q.value.unit } });
+    }
     take(c);
     const r = parseFactor(c, ctx);
     if (!r.ok) return r;

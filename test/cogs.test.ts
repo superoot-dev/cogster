@@ -766,6 +766,33 @@ lowest = min (v) over :ax
   assert.equal(val(r, "lowest"), 5);
 });
 
+run("parses negative number literal as qty (not neg expr)", () => {
+  const cases = [
+    { src: "x = -1", val: -1 },
+    { src: "x = -1.5", val: -1.5 },
+    { src: "x = -.5", val: -0.5 },
+    { src: "x = -0", val: -0 },
+    { src: "x = -$3.50", val: -3.5 },
+  ];
+  for (const c of cases) {
+    const p = parseOk(c.src);
+    assert.equal(p.bindings[0].expr.kind, "qty", `expected qty for '${c.src}', got ${p.bindings[0].expr.kind}`);
+    if (p.bindings[0].expr.kind === "qty") {
+      assert.equal(p.bindings[0].expr.qty.value, c.val, `${c.src}`);
+    }
+  }
+});
+
+run("negative literals still evaluate correctly in expressions", () => {
+  const r = evalOk("a = -2\nb = 3\nc = a + b");
+  assert.equal(val(r, "c"), 1);
+});
+
+run("unary minus on identifier still parses as neg expr", () => {
+  const p = parseOk("a = 5\nb = -a");
+  assert.equal(p.bindings[1].expr.kind, "neg");
+});
+
 run("parseQty yields to ref names after '/' (no parens needed)", () => {
   const src = `
 sticks per caddy = 16
