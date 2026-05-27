@@ -107,5 +107,10 @@ so `$10000 per month + $2000 per month` unifies as `$/month`.
 - After a number, `per <unit>` and `/<unit>` extend the unit's denominator
 - Tiers: `<expr> @ <qty>, <expr> @ <qty>, ...` — step-based (no interpolation)
 - Function calls: `name(arg, arg, ...)` — uses the shared math library
-  (`min`, `max`, `clamp`, `sqrt`, `getRoundTo`, `calcMax`, `getAvg`, etc.).
-  Reports/charts live outside the file — pick fields and views in the CLI/UI.
+  (`min`, `max`, `clamp`, `sqrt`, `getRoundTo`, `calcMax`, `getAvg`, etc.)
+- SKU blocks: `sku <name> { ... }` namespaces every binding inside under
+  `<name>.<binding>`. Refs inside resolve local-first then global. Cross-SKU
+  refs use the dotted path (`widget bar.cogs per bar`). See
+  [examples/multi-sku.cogs](./examples/multi-sku.cogs).
+
+Reports/charts live outside the file — pick fields and views in the CLI/UI.

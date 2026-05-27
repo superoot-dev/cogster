@@ -1,0 +1,154 @@
+// Multi-SKU demo: two snack bars sharing channel rates, taxes, and corp costs.
+// Globals defined once. Per-SKU blocks define what actually differs:
+// recipe leaves, channel pricing, sell-in volumes, and the G2N waterfall.
+
+// --- global: constants ---
+weeks per year = 52
+months per year = 12
+bars per case = 48
+bars per box = 4
+
+// --- global: ingredient base prices (shared suppliers) ---
+oats price = $42 / 50 lb
+almond butter price = $215 / 25 lb
+honey price = $120 / 30 lb
+dark chocolate price = $175 / 25 lb
+sea salt price = $30 / 50 lb
+peanut butter price = $180 / 25 lb
+oat flour price = $55 / 50 lb
+
+// --- global: taxes (almond butter & peanut butter ship from overseas) ---
+us food duty pct = 0.02
+broker fee pct = 0.0035
+import uplift = 1 + us food duty pct + broker fee pct
+almond butter landed price = almond butter price * import uplift
+peanut butter landed price = peanut butter price * import uplift
+
+// --- global: channel rates (apply to any SKU sold there) ---
+fakemart oi pct = 0.025
+fakemart mcb pct = 0.03
+fakemart scan pct = 0.02
+fakemart spoilage pct = 0.01
+fakemart coop pct = 0.02
+fakemart trade pct = fakemart oi pct + (1 - fakemart oi pct) * fakemart mcb pct + fakemart scan pct + fakemart spoilage pct + fakemart coop pct
+
+fakemart distributor pct = 0.22
+fakemart freight pct = 0.015
+fakemart cash discount pct = 0.02
+fakemart spoils allowance pct = 0.01
+fakemart take pct = fakemart distributor pct + fakemart freight pct + fakemart cash discount pct + fakemart spoils allowance pct
+
+faire fee pct = 0.15
+amazon referral pct = 0.15
+shopify merchant fee pct = 0.029
+
+// --- global: corp costs ---
+payroll annual = $400000
+opex annual = $60360
+marketing annual = $72000
+fixed annual = payroll annual + opex annual + marketing annual
+
+// --- SKU 1: Widget Bar (oats / almond butter / chocolate) ---
+sku widget bar {
+  // recipe (lb per bar, waste included)
+  oats per bar = 0.0510 lb
+  almond butter per bar = 0.01836 lb
+  honey per bar = 0.01224 lb
+  dark chocolate per bar = 0.01545 lb
+  sea salt per bar = 0.00202 lb
+
+  recipe cost per bar = oats per bar * oats price + almond butter per bar * almond butter landed price + honey per bar * honey price + dark chocolate per bar * dark chocolate price + sea salt per bar * sea salt price
+
+  packaging cost per bar = $0.195
+  processing cost per bar = $0.087
+  cogs per bar = recipe cost per bar + packaging cost per bar + processing cost per bar
+
+  // pricing per channel
+  fakemart price = $1.55
+  indie price = $1.65
+  amazon price = $2.50
+  shopify subs price = $1.69
+  amazon fba per bar = $0.40
+  amazon storage per bar = $0.005
+
+  // sell-in (mature steady state)
+  fakemart bars = 2400 * 28 * weeks per year
+  indie bars = 1200 * 32 * weeks per year
+  amazon bars = 15000 * months per year
+  shopify subs bars = 1800 * 21 * months per year
+
+  // G2N per channel
+  fakemart gross = fakemart price * fakemart bars
+  fakemart net = fakemart gross * (1 - fakemart trade pct - fakemart take pct)
+  fakemart profit = fakemart net - cogs per bar * fakemart bars
+
+  indie gross = indie price * indie bars
+  indie net = indie gross * (1 - faire fee pct)
+  indie profit = indie net - cogs per bar * indie bars
+
+  amazon gross = amazon price * amazon bars
+  amazon net = amazon gross * (1 - amazon referral pct) - (amazon fba per bar + amazon storage per bar) * amazon bars
+  amazon profit = amazon net - cogs per bar * amazon bars
+
+  shopify gross = shopify subs price * shopify subs bars
+  shopify net = shopify gross * (1 - shopify merchant fee pct)
+  shopify profit = shopify net - cogs per bar * shopify subs bars
+
+  total gross = fakemart gross + indie gross + amazon gross + shopify gross
+  total net = fakemart net + indie net + amazon net + shopify net
+  total profit = fakemart profit + indie profit + amazon profit + shopify profit
+}
+
+// --- SKU 2: Energy Bar (oats / peanut butter / dark choc - cheaper but lower-velocity) ---
+sku energy bar {
+  oat flour per bar = 0.045 lb
+  peanut butter per bar = 0.020 lb
+  honey per bar = 0.010 lb
+  dark chocolate per bar = 0.010 lb
+  sea salt per bar = 0.002 lb
+
+  recipe cost per bar = oat flour per bar * oat flour price + peanut butter per bar * peanut butter landed price + honey per bar * honey price + dark chocolate per bar * dark chocolate price + sea salt per bar * sea salt price
+
+  packaging cost per bar = $0.165
+  processing cost per bar = $0.075
+  cogs per bar = recipe cost per bar + packaging cost per bar + processing cost per bar
+
+  // smaller footprint, premium-positioned on Amazon
+  fakemart price = $1.45
+  indie price = $1.55
+  amazon price = $2.75
+  shopify subs price = $1.79
+  amazon fba per bar = $0.40
+  amazon storage per bar = $0.005
+
+  fakemart bars = 800 * 18 * weeks per year
+  indie bars = 600 * 22 * weeks per year
+  amazon bars = 22000 * months per year
+  shopify subs bars = 600 * 18 * months per year
+
+  fakemart gross = fakemart price * fakemart bars
+  fakemart net = fakemart gross * (1 - fakemart trade pct - fakemart take pct)
+  fakemart profit = fakemart net - cogs per bar * fakemart bars
+
+  indie gross = indie price * indie bars
+  indie net = indie gross * (1 - faire fee pct)
+  indie profit = indie net - cogs per bar * indie bars
+
+  amazon gross = amazon price * amazon bars
+  amazon net = amazon gross * (1 - amazon referral pct) - (amazon fba per bar + amazon storage per bar) * amazon bars
+  amazon profit = amazon net - cogs per bar * amazon bars
+
+  shopify gross = shopify subs price * shopify subs bars
+  shopify net = shopify gross * (1 - shopify merchant fee pct)
+  shopify profit = shopify net - cogs per bar * shopify subs bars
+
+  total gross = fakemart gross + indie gross + amazon gross + shopify gross
+  total net = fakemart net + indie net + amazon net + shopify net
+  total profit = fakemart profit + indie profit + amazon profit + shopify profit
+}
+
+// --- portfolio rollup (across SKUs via dotted refs) ---
+portfolio gross = widget bar.total gross + energy bar.total gross
+portfolio net = widget bar.total net + energy bar.total net
+portfolio profit = widget bar.total profit + energy bar.total profit
+contribution after fixed = portfolio profit - fixed annual

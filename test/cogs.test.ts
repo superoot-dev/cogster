@@ -153,6 +153,62 @@ run("call: getRoundTo", () => {
   assert.equal(r.get("x")?.value, 3.14);
 });
 
+run("sku block: prefixes names, local refs resolve in scope", () => {
+  const src = `
+sku widget bar {
+  cogs per bar = $0.64
+  price per bar = $1.55
+  units = 1000
+  revenue = price per bar * units
+}`;
+  const p = parseOk(src);
+  const namesSet = new Set(p.bindings.map((b) => b.name));
+  assert.ok(namesSet.has("widget bar.cogs per bar"));
+  assert.ok(namesSet.has("widget bar.revenue"));
+  const r = evalOk(src);
+  assert.equal(r.get("widget bar.revenue")?.value, 1550);
+});
+
+run("sku block: globals visible from inside", () => {
+  const src = `
+trade pct = 0.1
+sku widget bar {
+  gross = $1000
+  trade dollars = gross * trade pct
+}`;
+  const r = evalOk(src);
+  assert.equal(r.get("widget bar.trade dollars")?.value, 100);
+});
+
+run("sku block: dotted refs across SKUs", () => {
+  const src = `
+sku widget bar {
+  revenue = $1000
+}
+sku energy bar {
+  revenue = $500
+}
+total = widget bar.revenue + energy bar.revenue`;
+  const r = evalOk(src);
+  assert.equal(r.get("total")?.value, 1500);
+});
+
+run("sku block: local shadows global", () => {
+  const src = `
+price = $1
+sku premium {
+  price = $5
+  doubled = price + price
+}`;
+  const r = evalOk(src);
+  assert.equal(r.get("premium.doubled")?.value, 10);
+});
+
+run("unclosed sku block errors", () => {
+  const r = parseProgram("sku foo {\nbar = 1\n");
+  assert.equal(r.ok, false);
+});
+
 run("unknown function errors", () => {
   const p = parseOk("a = nope(1)");
   const r = evalProgram(p);

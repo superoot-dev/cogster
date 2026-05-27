@@ -3,13 +3,13 @@ import { Binding, Expr, Program, Qty, Unit } from "./CogsTypes";
 import { parseUnit } from "./CogsUnits";
 import { normalizeUnit } from "./UnitHelpers";
 
-type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "$";
+type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "$" | ".";
 type Tok =
   | { kind: "num"; value: number; pos: number }
   | { kind: "word"; value: string; pos: number }
   | { kind: "op"; value: OpCh; pos: number };
 
-const OPS: Set<OpCh> = new Set(["+", "-", "*", "/", "(", ")", "@", ",", "$"]);
+const OPS: Set<OpCh> = new Set(["+", "-", "*", "/", "(", ")", "@", ",", "$", "."]);
 
 function lex(src: string): Result<Tok[], string> {
   const out: Tok[] = [];
@@ -20,16 +20,16 @@ function lex(src: string): Result<Tok[], string> {
       i += 1;
       continue;
     }
-    if (isOpCh(c)) {
-      out.push({ kind: "op", value: c, pos: i });
-      i += 1;
-      continue;
-    }
-    if (/[0-9.]/.test(c)) {
+    if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] ?? ""))) {
       const m = src.slice(i).match(/^[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?|^\.[0-9]+([eE][+-]?[0-9]+)?/);
       if (!m) return err(`bad number at ${i}`);
       out.push({ kind: "num", value: Number(m[0]), pos: i });
       i += m[0].length;
+      continue;
+    }
+    if (isOpCh(c)) {
+      out.push({ kind: "op", value: c, pos: i });
+      i += 1;
       continue;
     }
     if (/[A-Za-z_]/.test(c)) {
@@ -124,7 +124,7 @@ function parseQty(c: Cursor): Result<Qty, string> {
   return ok({ value: n.value, unit });
 }
 
-function parseCallArgs(c: Cursor, names: Set<string>): Result<Expr[], string> {
+function parseCallArgs(c: Cursor, names: Set<string>, scope: string | null): Result<Expr[], string> {
   const open = take(c);
   if (!isOp(open, "(")) return err(`expected '(' at ${open?.pos ?? "EOF"}`);
   const args: Expr[] = [];
@@ -133,7 +133,7 @@ function parseCallArgs(c: Cursor, names: Set<string>): Result<Expr[], string> {
     return ok(args);
   }
   while (true) {
-    const a = parseAddSub(c, names);
+    const a = parseAddSub(c, names, scope);
     if (!a.ok) return a;
     args.push(a.value);
     const nxt = peek(c);
@@ -149,42 +149,87 @@ function parseCallArgs(c: Cursor, names: Set<string>): Result<Expr[], string> {
   }
 }
 
-function parseWordHead(c: Cursor, names: Set<string>): Result<Expr, string> {
+type PathPart = { kind: "word"; value: string } | { kind: "dot" };
+
+function collectPath(c: Cursor): PathPart[] {
+  const out: PathPart[] = [];
+  while (true) {
+    const t = peek(c);
+    if (t?.kind === "word") {
+      out.push({ kind: "word", value: t.value });
+      take(c);
+    } else if (isOp(t, ".") && peek(c, 1)?.kind === "word") {
+      out.push({ kind: "dot" });
+      take(c);
+    } else {
+      break;
+    }
+  }
+  return out;
+}
+
+function resolveRef(
+  parts: PathPart[],
+  names: Set<string>,
+  scope: string | null,
+): { name: string; consumed: number } | null {
+  const segs: string[][] = [[]];
+  for (const p of parts) {
+    if (p.kind === "dot") segs.push([]);
+    else segs[segs.length - 1].push(p.value);
+  }
+  if (segs.length === 1) {
+    const words = segs[0];
+    for (let n = words.length; n > 0; n -= 1) {
+      const tail = words.slice(0, n).join(" ");
+      if (scope && names.has(`${scope}.${tail}`)) return { name: `${scope}.${tail}`, consumed: n };
+      if (names.has(tail)) return { name: tail, consumed: n };
+    }
+    return null;
+  }
+  const nsPrefix = segs.slice(0, -1).map((s) => s.join(" ")).join(".");
+  const lastWords = segs[segs.length - 1];
+  const beforeLast = segs.slice(0, -1).reduce((sum, s) => sum + s.length, 0) + (segs.length - 1);
+  for (let n = lastWords.length; n > 0; n -= 1) {
+    const candidate = `${nsPrefix}.${lastWords.slice(0, n).join(" ")}`;
+    if (names.has(candidate)) return { name: candidate, consumed: beforeLast + n };
+  }
+  return null;
+}
+
+function parseWordHead(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
   const first = peek(c);
   if (!first || first.kind !== "word") return err(`expected identifier at ${first?.pos ?? "EOF"}`);
-  if (peek(c, 1)?.kind === "op" && (peek(c, 1) as Tok & { value: OpCh }).value === "(") {
+  const next = peek(c, 1);
+  if (next?.kind === "op" && next.value === "(") {
     take(c);
-    const args = parseCallArgs(c, names);
+    const args = parseCallArgs(c, names, scope);
     if (!args.ok) return args;
     return ok({ kind: "call", name: first.value, args: args.value });
   }
   const startI = c.i;
-  const words: string[] = [];
-  while (peek(c)?.kind === "word") {
-    words.push((take(c) as Tok & { kind: "word" }).value);
+  const parts = collectPath(c);
+  const hit = resolveRef(parts, names, scope);
+  if (!hit) {
+    const shown = parts.map((p) => (p.kind === "dot" ? "." : p.value)).join(" ");
+    return err(`unknown identifier '${shown}'`);
   }
-  for (let n = words.length; n > 0; n -= 1) {
-    const candidate = words.slice(0, n).join(" ");
-    if (names.has(candidate)) {
-      c.i = startI + n;
-      return ok({ kind: "ref", name: candidate });
-    }
-  }
-  return err(`unknown identifier '${words.join(" ")}'`);
+  c.i = startI + hit.consumed;
+  return ok({ kind: "ref", name: hit.name });
 }
 
-function parseFactor(c: Cursor, names: Set<string>): Result<Expr, string> {
+function parseFactor(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
   const t = peek(c);
   if (!t) return err("unexpected end of expression");
   if (isOp(t, "-")) {
     take(c);
-    const r = parseFactor(c, names);
+    const r = parseFactor(c, names, scope);
     if (!r.ok) return r;
     return ok({ kind: "neg", expr: r.value });
   }
   if (isOp(t, "(")) {
     take(c);
-    const inner = parseAddSub(c, names);
+    const inner = parseAddSub(c, names, scope);
     if (!inner.ok) return inner;
     const close = take(c);
     if (!isOp(close, ")")) return err(`expected ')' at ${close?.pos ?? "EOF"}`);
@@ -195,42 +240,42 @@ function parseFactor(c: Cursor, names: Set<string>): Result<Expr, string> {
     if (!q.ok) return q;
     return ok({ kind: "qty", qty: q.value });
   }
-  return parseWordHead(c, names);
+  return parseWordHead(c, names, scope);
 }
 
-function parseMulDiv(c: Cursor, names: Set<string>): Result<Expr, string> {
-  const first = parseFactor(c, names);
+function parseMulDiv(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
+  const first = parseFactor(c, names, scope);
   if (!first.ok) return first;
   let left: Expr = first.value;
   while (true) {
     const t = peek(c);
     if (!isOp(t, "*") && !isOp(t, "/")) break;
     const op = (take(c) as Tok).value as "*" | "/";
-    const right = parseFactor(c, names);
+    const right = parseFactor(c, names, scope);
     if (!right.ok) return right;
     left = { kind: "op", op, left, right: right.value };
   }
   return ok(left);
 }
 
-function parseAddSub(c: Cursor, names: Set<string>): Result<Expr, string> {
-  const first = parseMulDiv(c, names);
+function parseAddSub(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
+  const first = parseMulDiv(c, names, scope);
   if (!first.ok) return first;
   let left: Expr = first.value;
   while (true) {
     const t = peek(c);
     if (!isOp(t, "+") && !isOp(t, "-")) break;
     const op = (take(c) as Tok).value as "+" | "-";
-    const right = parseMulDiv(c, names);
+    const right = parseMulDiv(c, names, scope);
     if (!right.ok) return right;
     left = { kind: "op", op, left, right: right.value };
   }
   return ok(left);
 }
 
-function parseTierBody(c: Cursor, names: Set<string>): Result<Expr, string> {
+function parseTierBody(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
   const segments: { at: Qty; expr: Expr }[] = [];
-  const first = parseAddSub(c, names);
+  const first = parseAddSub(c, names, scope);
   if (!first.ok) return first;
   if (!isOp(peek(c), "@")) return first;
   take(c);
@@ -239,7 +284,7 @@ function parseTierBody(c: Cursor, names: Set<string>): Result<Expr, string> {
   segments.push({ at: firstAt.value, expr: first.value });
   while (isOp(peek(c), ",")) {
     take(c);
-    const expr = parseAddSub(c, names);
+    const expr = parseAddSub(c, names, scope);
     if (!expr.ok) return expr;
     if (!isOp(peek(c), "@")) return err(`expected '@' after tier expression at ${peek(c)?.pos ?? "EOF"}`);
     take(c);
@@ -251,11 +296,11 @@ function parseTierBody(c: Cursor, names: Set<string>): Result<Expr, string> {
   return ok({ kind: "tiers", tiers: segments });
 }
 
-function parseExprFrom(src: string, names: Set<string>): Result<Expr, string> {
+function parseExprFrom(src: string, names: Set<string>, scope: string | null): Result<Expr, string> {
   const lex0 = lex(src);
   if (!lex0.ok) return lex0;
   const c: Cursor = { toks: lex0.value, i: 0 };
-  const e = parseTierBody(c, names);
+  const e = parseTierBody(c, names, scope);
   if (!e.ok) return e;
   if (c.i < c.toks.length) {
     return err(`unexpected token at ${c.toks[c.i].pos}`);
@@ -263,30 +308,53 @@ function parseExprFrom(src: string, names: Set<string>): Result<Expr, string> {
   return e;
 }
 
-type RawLine = { name: string; rhs: string };
+type RawLine = { name: string; rhs: string; scope: string | null };
 
-function classify(line: string): RawLine | null {
-  const t = collapseSpaces(line);
-  if (!t) return null;
-  const eq = t.indexOf("=");
-  if (eq < 0) return null;
-  const name = collapseSpaces(t.slice(0, eq));
-  const rhs = t.slice(eq + 1).trim();
-  if (!name || !rhs) return null;
-  return { name, rhs };
+const BLOCK_OPEN_RE = /^sku\s+(.+?)\s*\{$/;
+
+function parseLines(src: string): Result<RawLine[], string> {
+  const clean = stripComments(src);
+  const out: RawLine[] = [];
+  let scope: string | null = null;
+  let lineNo = 0;
+  for (const raw of clean.split("\n")) {
+    lineNo += 1;
+    const t = collapseSpaces(raw);
+    if (!t) continue;
+    const open = t.match(BLOCK_OPEN_RE);
+    if (open) {
+      if (scope !== null) return err(`nested sku block not supported at line ${lineNo}`);
+      scope = collapseSpaces(open[1]);
+      continue;
+    }
+    if (t === "}") {
+      if (scope === null) return err(`unmatched '}' at line ${lineNo}`);
+      scope = null;
+      continue;
+    }
+    const eq = t.indexOf("=");
+    if (eq < 0) continue;
+    const localName = collapseSpaces(t.slice(0, eq));
+    const rhs = t.slice(eq + 1).trim();
+    if (!localName || !rhs) continue;
+    const fullName = scope ? `${scope}.${localName}` : localName;
+    out.push({ name: fullName, rhs, scope });
+  }
+  if (scope !== null) return err("unclosed sku block");
+  return ok(out);
 }
 
 export function parseProgram(src: string): Result<Program, string> {
-  const clean = stripComments(src);
-  const lines = clean.split(/\n/).map(classify).filter(Boolean) as RawLine[];
+  const lines = parseLines(src);
+  if (!lines.ok) return lines;
   const names = new Set<string>();
-  for (const ln of lines) {
+  for (const ln of lines.value) {
     if (names.has(ln.name)) return err(`duplicate binding '${ln.name}'`);
     names.add(ln.name);
   }
   const bindings: Binding[] = [];
-  for (const ln of lines) {
-    const expr = parseExprFrom(ln.rhs, names);
+  for (const ln of lines.value) {
+    const expr = parseExprFrom(ln.rhs, names, ln.scope);
     if (!expr.ok) return err(`in binding '${ln.name}': ${expr.error}`);
     bindings.push({ name: ln.name, expr: expr.value });
   }
