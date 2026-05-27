@@ -4,6 +4,7 @@ import { hideBin } from "yargs/helpers";
 import { parseProgram } from "../lib/CogsParser";
 import { evalProgram } from "../lib/CogsEvaluator";
 import { fmtQty } from "../lib/CogsUnits";
+import { CogValue } from "../lib/CogsTypes";
 
 const argv = yargs(hideBin(process.argv))
   .scriptName("cogs")
@@ -38,14 +39,36 @@ if (!evald.ok) {
   process.exit(1);
 }
 
+function fmtTags(at: Record<string, string>, axes: string[]): string {
+  return axes.map((a) => `:${at[a]}`).join(" ");
+}
+
 const useJson = (argv as { json?: boolean }).json;
 if (useJson) {
-  const out: Record<string, { value: number; unit: string }> = {};
-  for (const [k, v] of evald.value) out[k] = { value: v.value, unit: fmtQty(v).replace(/^[^\s]+\s?/, "") };
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of evald.value) {
+    if (v.axes.length === 0) {
+      const c = v.cells[0];
+      out[k] = { value: c.qty.value, unit: fmtQty(c.qty).replace(/^[^\s]+\s?/, "") };
+    } else {
+      out[k] = {
+        axes: v.axes,
+        cells: v.cells.map((c) => ({ at: c.at, value: c.qty.value, unit: fmtQty(c.qty).replace(/^[^\s]+\s?/, "") })),
+      };
+    }
+  }
   console.log(JSON.stringify(out, null, 2));
 } else {
   const width = Math.max(...[...evald.value.keys()].map((k) => k.length));
   for (const [k, v] of evald.value) {
-    console.log(`${k.padEnd(width)}  ${fmtQty(v)}`);
+    if (v.axes.length === 0) {
+      console.log(`${k.padEnd(width)}  ${fmtQty(v.cells[0].qty)}`);
+    } else {
+      console.log(k);
+      const tagWidth = Math.max(...v.cells.map((c) => fmtTags(c.at, v.axes).length));
+      for (const cell of v.cells) {
+        console.log(`  ${fmtTags(cell.at, v.axes).padEnd(tagWidth)}  ${fmtQty(cell.qty)}`);
+      }
+    }
   }
 }

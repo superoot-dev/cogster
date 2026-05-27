@@ -1,15 +1,17 @@
 import { Result, err, ok } from "./CoreTypings";
-import { Binding, Expr, Program, Qty, Unit } from "./CogsTypes";
+import { AggOp, Axis, BranchCase, Binding, Expr, Program, Qty, TagSet, Unit } from "./CogsTypes";
 import { parseUnit } from "./CogsUnits";
 import { normalizeUnit } from "./UnitHelpers";
 
-type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "$" | ".";
+type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "$" | ":";
 type Tok =
   | { kind: "num"; value: number; pos: number }
   | { kind: "word"; value: string; pos: number }
   | { kind: "op"; value: OpCh; pos: number };
 
-const OPS: Set<OpCh> = new Set(["+", "-", "*", "/", "(", ")", "@", ",", "$", "."]);
+const OPS: Set<OpCh> = new Set(["+", "-", "*", "/", "(", ")", "@", ",", "$", ":"]);
+const AGG_OPS: Record<string, AggOp> = { sum: "sum", avg: "avg", min: "min", max: "max" };
+const RESERVED_WORDS = new Set(["axis", "over", "sum", "avg", "min", "max"]);
 
 function lex(src: string): Result<Tok[], string> {
   const out: Tok[] = [];
@@ -32,7 +34,7 @@ function lex(src: string): Result<Tok[], string> {
       i += 1;
       continue;
     }
-    if (/[A-Za-z_]/.test(c)) {
+    if (c === "_" || /[A-Za-z]/.test(c)) {
       const m = src.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*/);
       if (!m) return err(`bad word at ${i}`);
       out.push({ kind: "word", value: m[0], pos: i });
@@ -75,6 +77,16 @@ function isOp(t: Tok | null, v: string): boolean {
   return !!t && t.kind === "op" && t.value === v;
 }
 
+function isWord(t: Tok | null, v: string): boolean {
+  return !!t && t.kind === "word" && t.value === v;
+}
+
+type Ctx = {
+  names: Set<string>;
+  axes: Map<string, Set<string>>;
+  tagToAxis: Map<string, string>;
+};
+
 function parseQty(c: Cursor): Result<Qty, string> {
   let currency = false;
   const t = peek(c);
@@ -92,7 +104,7 @@ function parseQty(c: Cursor): Result<Qty, string> {
     if (!p) break;
     if (p.kind === "op" && p.value === "/") {
       const nx = peek(c, 1);
-      if (nx?.kind === "word") {
+      if (nx?.kind === "word" && !RESERVED_WORDS.has(nx.value)) {
         unitTokens.push("/");
         take(c);
         lastWasDiv = true;
@@ -101,9 +113,10 @@ function parseQty(c: Cursor): Result<Qty, string> {
       break;
     }
     if (p.kind === "word") {
+      if (RESERVED_WORDS.has(p.value)) break;
       if (p.value === "per") {
         const nx = peek(c, 1);
-        if (nx?.kind === "word") {
+        if (nx?.kind === "word" && !RESERVED_WORDS.has(nx.value)) {
           unitTokens.push("per");
           take(c);
           lastWasDiv = true;
@@ -124,7 +137,7 @@ function parseQty(c: Cursor): Result<Qty, string> {
   return ok({ value: n.value, unit });
 }
 
-function parseCallArgs(c: Cursor, names: Set<string>, scope: string | null): Result<Expr[], string> {
+function parseCallArgs(c: Cursor, ctx: Ctx): Result<Expr[], string> {
   const open = take(c);
   if (!isOp(open, "(")) return err(`expected '(' at ${open?.pos ?? "EOF"}`);
   const args: Expr[] = [];
@@ -133,7 +146,7 @@ function parseCallArgs(c: Cursor, names: Set<string>, scope: string | null): Res
     return ok(args);
   }
   while (true) {
-    const a = parseAddSub(c, names, scope);
+    const a = parseAddSub(c, ctx);
     if (!a.ok) return a;
     args.push(a.value);
     const nxt = peek(c);
@@ -149,133 +162,181 @@ function parseCallArgs(c: Cursor, names: Set<string>, scope: string | null): Res
   }
 }
 
-type PathPart = { kind: "word"; value: string } | { kind: "dot" };
-
-function collectPath(c: Cursor): PathPart[] {
-  const out: PathPart[] = [];
+function collectWords(c: Cursor, stopAt: (t: Tok) => boolean): string[] {
+  const words: string[] = [];
   while (true) {
     const t = peek(c);
-    if (t?.kind === "word") {
-      out.push({ kind: "word", value: t.value });
-      take(c);
-    } else if (isOp(t, ".") && peek(c, 1)?.kind === "word") {
-      out.push({ kind: "dot" });
-      take(c);
-    } else {
-      break;
-    }
+    if (!t) break;
+    if (t.kind !== "word") break;
+    if (RESERVED_WORDS.has(t.value)) break;
+    if (stopAt(t)) break;
+    words.push(t.value);
+    take(c);
   }
-  return out;
+  return words;
 }
 
-function resolveRef(
-  parts: PathPart[],
-  names: Set<string>,
-  scope: string | null,
-): { name: string; consumed: number } | null {
-  const segs: string[][] = [[]];
-  for (const p of parts) {
-    if (p.kind === "dot") segs.push([]);
-    else segs[segs.length - 1].push(p.value);
-  }
-  if (segs.length === 1) {
-    const words = segs[0];
-    for (let n = words.length; n > 0; n -= 1) {
-      const tail = words.slice(0, n).join(" ");
-      if (scope && names.has(`${scope}.${tail}`)) return { name: `${scope}.${tail}`, consumed: n };
-      if (names.has(tail)) return { name: tail, consumed: n };
+function parseRefName(c: Cursor, ctx: Ctx): { name: string } | null {
+  const startI = c.i;
+  const words = collectWords(c, () => false);
+  for (let n = words.length; n > 0; n -= 1) {
+    const candidate = words.slice(0, n).join(" ");
+    if (ctx.names.has(candidate)) {
+      c.i = startI + n;
+      return { name: candidate };
     }
-    return null;
   }
-  const nsPrefix = segs.slice(0, -1).map((s) => s.join(" ")).join(".");
-  const lastWords = segs[segs.length - 1];
-  const beforeLast = segs.slice(0, -1).reduce((sum, s) => sum + s.length, 0) + (segs.length - 1);
-  for (let n = lastWords.length; n > 0; n -= 1) {
-    const candidate = `${nsPrefix}.${lastWords.slice(0, n).join(" ")}`;
-    if (names.has(candidate)) return { name: candidate, consumed: beforeLast + n };
-  }
+  c.i = startI;
   return null;
 }
 
-function parseWordHead(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
-  const first = peek(c);
-  if (!first || first.kind !== "word") return err(`expected identifier at ${first?.pos ?? "EOF"}`);
-  const next = peek(c, 1);
-  if (next?.kind === "op" && next.value === "(") {
+type TagParse = { kind: "wildcard" } | { kind: "tag"; axis: string; value: string } | { kind: "axis"; name: string };
+
+function parseTagAfterColon(c: Cursor, ctx: Ctx): Result<TagParse, string> {
+  const colon = take(c);
+  if (!isOp(colon, ":")) return err(`expected ':' at ${colon?.pos ?? "EOF"}`);
+  if (isOp(peek(c), "*")) {
     take(c);
-    const args = parseCallArgs(c, names, scope);
-    if (!args.ok) return args;
-    return ok({ kind: "call", name: first.value, args: args.value });
+    return ok({ kind: "wildcard" });
   }
   const startI = c.i;
-  const parts = collectPath(c);
-  const hit = resolveRef(parts, names, scope);
-  if (!hit) {
-    const shown = parts.map((p) => (p.kind === "dot" ? "." : p.value)).join(" ");
-    return err(`unknown identifier '${shown}'`);
+  const words = collectWords(c, () => false);
+  if (words.length === 0) return err(`expected tag after ':' at ${peek(c)?.pos ?? "EOF"}`);
+  for (let n = words.length; n > 0; n -= 1) {
+    const candidate = words.slice(0, n).join(" ");
+    const ax = ctx.tagToAxis.get(candidate);
+    if (ax) {
+      c.i = startI + n;
+      return ok({ kind: "tag", axis: ax, value: candidate });
+    }
+    if (ctx.axes.has(candidate)) {
+      c.i = startI + n;
+      return ok({ kind: "axis", name: candidate });
+    }
   }
-  c.i = startI + hit.consumed;
-  return ok({ kind: "ref", name: hit.name });
+  return err(`unknown tag or axis '${words.join(" ")}'`);
 }
 
-function parseFactor(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
+function parseSelectorTags(c: Cursor, ctx: Ctx): Result<TagSet, string> {
+  const filter: TagSet = {};
+  while (isOp(peek(c), ":")) {
+    const t = parseTagAfterColon(c, ctx);
+    if (!t.ok) return t;
+    if (t.value.kind !== "tag") return err(`selector expects tag values, got ${t.value.kind}`);
+    if (!filter[t.value.axis]) filter[t.value.axis] = [];
+    filter[t.value.axis].push(t.value.value);
+  }
+  return ok(filter);
+}
+
+function parseAxisList(c: Cursor, ctx: Ctx): Result<string[], string> {
+  const axes: string[] = [];
+  while (isOp(peek(c), ":")) {
+    const t = parseTagAfterColon(c, ctx);
+    if (!t.ok) return t;
+    if (t.value.kind !== "axis") return err(`aggregation expects axis names, got ${t.value.kind === "tag" ? `tag '${t.value.value}'` : "wildcard"}`);
+    axes.push(t.value.name);
+  }
+  if (axes.length === 0) return err("expected at least one ':axis' after 'over'");
+  return ok(axes);
+}
+
+function parseAggregation(c: Cursor, ctx: Ctx, op: AggOp): Result<Expr, string> {
+  const inner = parseFactor(c, ctx);
+  if (!inner.ok) return inner;
+  const overTok = peek(c);
+  if (!isWord(overTok, "over")) return err(`expected 'over' after aggregated expression at ${overTok?.pos ?? "EOF"}`);
+  take(c);
+  const axes = parseAxisList(c, ctx);
+  if (!axes.ok) return axes;
+  return ok({ kind: "aggregate", op, expr: inner.value, axes: axes.value });
+}
+
+function parseFactor(c: Cursor, ctx: Ctx): Result<Expr, string> {
   const t = peek(c);
   if (!t) return err("unexpected end of expression");
   if (isOp(t, "-")) {
     take(c);
-    const r = parseFactor(c, names, scope);
+    const r = parseFactor(c, ctx);
     if (!r.ok) return r;
     return ok({ kind: "neg", expr: r.value });
   }
   if (isOp(t, "(")) {
     take(c);
-    const inner = parseAddSub(c, names, scope);
+    const inner = parseAddSub(c, ctx);
     if (!inner.ok) return inner;
     const close = take(c);
     if (!isOp(close, ")")) return err(`expected ')' at ${close?.pos ?? "EOF"}`);
-    return inner;
+    return wrapWithSelector(c, ctx, inner.value);
   }
   if (t.kind === "num" || isOp(t, "$")) {
     const q = parseQty(c);
     if (!q.ok) return q;
     return ok({ kind: "qty", qty: q.value });
   }
-  return parseWordHead(c, names, scope);
+  if (t.kind === "word") {
+    const next = peek(c, 1);
+    if (next?.kind === "op" && next.value === "(") {
+      take(c);
+      const args = parseCallArgs(c, ctx);
+      if (!args.ok) return args;
+      return wrapWithSelector(c, ctx, { kind: "call", name: t.value, args: args.value });
+    }
+    if (t.value in AGG_OPS) {
+      take(c);
+      return parseAggregation(c, ctx, AGG_OPS[t.value]);
+    }
+    const ref = parseRefName(c, ctx);
+    if (!ref) {
+      const probe = collectWords({ toks: c.toks, i: c.i }, () => false);
+      return err(`unknown identifier '${probe.join(" ")}' at ${t.pos}`);
+    }
+    return wrapWithSelector(c, ctx, { kind: "ref", name: ref.name });
+  }
+  return err(`unexpected token at ${t.pos}`);
 }
 
-function parseMulDiv(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
-  const first = parseFactor(c, names, scope);
+function wrapWithSelector(c: Cursor, ctx: Ctx, expr: Expr): Result<Expr, string> {
+  if (!isOp(peek(c), ":")) return ok(expr);
+  const f = parseSelectorTags(c, ctx);
+  if (!f.ok) return f;
+  if (Object.keys(f.value).length === 0) return ok(expr);
+  return ok({ kind: "select", expr, filter: f.value });
+}
+
+function parseMulDiv(c: Cursor, ctx: Ctx): Result<Expr, string> {
+  const first = parseFactor(c, ctx);
   if (!first.ok) return first;
   let left: Expr = first.value;
   while (true) {
     const t = peek(c);
     if (!isOp(t, "*") && !isOp(t, "/")) break;
     const op = (take(c) as Tok).value as "*" | "/";
-    const right = parseFactor(c, names, scope);
+    const right = parseFactor(c, ctx);
     if (!right.ok) return right;
     left = { kind: "op", op, left, right: right.value };
   }
   return ok(left);
 }
 
-function parseAddSub(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
-  const first = parseMulDiv(c, names, scope);
+function parseAddSub(c: Cursor, ctx: Ctx): Result<Expr, string> {
+  const first = parseMulDiv(c, ctx);
   if (!first.ok) return first;
   let left: Expr = first.value;
   while (true) {
     const t = peek(c);
     if (!isOp(t, "+") && !isOp(t, "-")) break;
     const op = (take(c) as Tok).value as "+" | "-";
-    const right = parseMulDiv(c, names, scope);
+    const right = parseMulDiv(c, ctx);
     if (!right.ok) return right;
     left = { kind: "op", op, left, right: right.value };
   }
   return ok(left);
 }
 
-function parseTierBody(c: Cursor, names: Set<string>, scope: string | null): Result<Expr, string> {
+function parseTierBody(c: Cursor, ctx: Ctx): Result<Expr, string> {
   const segments: { at: Qty; expr: Expr }[] = [];
-  const first = parseAddSub(c, names, scope);
+  const first = parseAddSub(c, ctx);
   if (!first.ok) return first;
   if (!isOp(peek(c), "@")) return first;
   take(c);
@@ -284,7 +345,7 @@ function parseTierBody(c: Cursor, names: Set<string>, scope: string | null): Res
   segments.push({ at: firstAt.value, expr: first.value });
   while (isOp(peek(c), ",")) {
     take(c);
-    const expr = parseAddSub(c, names, scope);
+    const expr = parseAddSub(c, ctx);
     if (!expr.ok) return expr;
     if (!isOp(peek(c), "@")) return err(`expected '@' after tier expression at ${peek(c)?.pos ?? "EOF"}`);
     take(c);
@@ -296,11 +357,11 @@ function parseTierBody(c: Cursor, names: Set<string>, scope: string | null): Res
   return ok({ kind: "tiers", tiers: segments });
 }
 
-function parseExprFrom(src: string, names: Set<string>, scope: string | null): Result<Expr, string> {
+function parseExprFrom(src: string, ctx: Ctx): Result<Expr, string> {
   const lex0 = lex(src);
   if (!lex0.ok) return lex0;
   const c: Cursor = { toks: lex0.value, i: 0 };
-  const e = parseTierBody(c, names, scope);
+  const e = parseTierBody(c, ctx);
   if (!e.ok) return e;
   if (c.i < c.toks.length) {
     return err(`unexpected token at ${c.toks[c.i].pos}`);
@@ -308,57 +369,169 @@ function parseExprFrom(src: string, names: Set<string>, scope: string | null): R
   return e;
 }
 
-type RawLine = { name: string; rhs: string; scope: string | null };
-
-const BLOCK_OPEN_RE = /^sku\s+(.+?)\s*\{$/;
-
-function parseLines(src: string): Result<RawLine[], string> {
-  const clean = stripComments(src);
-  const out: RawLine[] = [];
-  let scope: string | null = null;
-  let lineNo = 0;
-  for (const raw of clean.split("\n")) {
-    lineNo += 1;
-    const t = collapseSpaces(raw);
-    if (!t) continue;
-    const open = t.match(BLOCK_OPEN_RE);
-    if (open) {
-      if (scope !== null) return err(`nested sku block not supported at line ${lineNo}`);
-      scope = collapseSpaces(open[1]);
-      continue;
+function parseBranchTags(src: string, ctx: Ctx): Result<{ tags: TagSet; rest: string }, string> {
+  const lex0 = lex(src);
+  if (!lex0.ok) return lex0;
+  const c: Cursor = { toks: lex0.value, i: 0 };
+  const tags: TagSet = {};
+  while (isOp(peek(c), ":")) {
+    const t = parseTagAfterColon(c, ctx);
+    if (!t.ok) return t;
+    if (t.value.kind === "tag") {
+      if (!tags[t.value.axis]) tags[t.value.axis] = [];
+      tags[t.value.axis].push(t.value.value);
     }
-    if (t === "}") {
-      if (scope === null) return err(`unmatched '}' at line ${lineNo}`);
-      scope = null;
-      continue;
-    }
-    const eq = t.indexOf("=");
-    if (eq < 0) continue;
-    const localName = collapseSpaces(t.slice(0, eq));
-    const rhs = t.slice(eq + 1).trim();
-    if (!localName || !rhs) continue;
-    const fullName = scope ? `${scope}.${localName}` : localName;
-    out.push({ name: fullName, rhs, scope });
   }
-  if (scope !== null) return err("unclosed sku block");
-  return ok(out);
+  const remaining = src.slice(c.toks[c.i]?.pos ?? src.length);
+  return ok({ tags, rest: remaining });
+}
+
+type RawAxis = { name: string; values: string[] };
+type RawBinding = { name: string; rhs: string; branches: string[] };
+
+function isBranchLine(line: string): boolean {
+  return line.trimStart().startsWith(":");
+}
+
+function parseAxisLine(line: string): RawAxis | null {
+  const m = line.match(/^axis\s+(.+?)\s*=\s*(.+)$/);
+  if (!m) return null;
+  const name = collapseSpaces(m[1]);
+  const valsStr = m[2].trim();
+  const values: string[] = [];
+  let buf = "";
+  let started = false;
+  for (let i = 0; i < valsStr.length; i += 1) {
+    const ch = valsStr[i];
+    if (ch === ":") {
+      if (started && buf.trim()) values.push(collapseSpaces(buf));
+      buf = "";
+      started = true;
+      continue;
+    }
+    if (started) buf += ch;
+  }
+  if (buf.trim()) values.push(collapseSpaces(buf));
+  return { name, values };
+}
+
+type ScanResult = { axes: RawAxis[]; bindings: RawBinding[] };
+
+function scanLines(src: string): Result<ScanResult, string> {
+  const clean = stripComments(src);
+  const lines = clean.split("\n");
+  const axes: RawAxis[] = [];
+  const bindings: RawBinding[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      i += 1;
+      continue;
+    }
+    if (trimmed.startsWith("axis ")) {
+      const ax = parseAxisLine(trimmed);
+      if (!ax) return err(`bad axis declaration: '${trimmed}'`);
+      axes.push(ax);
+      i += 1;
+      continue;
+    }
+    const eq = trimmed.indexOf("=");
+    if (eq < 0) {
+      i += 1;
+      continue;
+    }
+    const name = collapseSpaces(trimmed.slice(0, eq));
+    const rhsRest = trimmed.slice(eq + 1).trim();
+    const branches: string[] = [];
+    let rhs = rhsRest;
+    if (!rhsRest) {
+      i += 1;
+      while (i < lines.length) {
+        const next = lines[i];
+        if (!next.trim()) {
+          i += 1;
+          continue;
+        }
+        if (!isBranchLine(next)) break;
+        branches.push(next.trim());
+        i += 1;
+      }
+    } else {
+      i += 1;
+      while (i < lines.length) {
+        const next = lines[i];
+        if (!next.trim()) {
+          i += 1;
+          continue;
+        }
+        if (!isBranchLine(next)) break;
+        branches.push(next.trim());
+        i += 1;
+      }
+    }
+    if (!name || (!rhs && branches.length === 0)) {
+      return err(`bad binding at '${name || trimmed}'`);
+    }
+    bindings.push({ name, rhs, branches });
+  }
+  return ok({ axes, bindings });
+}
+
+function buildCtx(scan: ScanResult): Result<Ctx, string> {
+  const axes = new Map<string, Set<string>>();
+  const tagToAxis = new Map<string, string>();
+  for (const ax of scan.axes) {
+    if (axes.has(ax.name)) return err(`duplicate axis '${ax.name}'`);
+    axes.set(ax.name, new Set(ax.values));
+    for (const v of ax.values) {
+      if (tagToAxis.has(v)) return err(`tag '${v}' belongs to multiple axes`);
+      tagToAxis.set(v, ax.name);
+    }
+  }
+  const names = new Set<string>();
+  for (const b of scan.bindings) {
+    if (names.has(b.name)) return err(`duplicate binding '${b.name}'`);
+    names.add(b.name);
+  }
+  return ok({ names, axes, tagToAxis });
 }
 
 export function parseProgram(src: string): Result<Program, string> {
-  const lines = parseLines(src);
-  if (!lines.ok) return lines;
-  const names = new Set<string>();
-  for (const ln of lines.value) {
-    if (names.has(ln.name)) return err(`duplicate binding '${ln.name}'`);
-    names.add(ln.name);
-  }
+  const scan = scanLines(src);
+  if (!scan.ok) return scan;
+  const ctxR = buildCtx(scan.value);
+  if (!ctxR.ok) return ctxR;
+  const ctx = ctxR.value;
+  const axes: Axis[] = scan.value.axes.map((a) => ({ name: a.name, values: a.values }));
   const bindings: Binding[] = [];
-  for (const ln of lines.value) {
-    const expr = parseExprFrom(ln.rhs, names, ln.scope);
-    if (!expr.ok) return err(`in binding '${ln.name}': ${expr.error}`);
-    bindings.push({ name: ln.name, expr: expr.value });
+  for (const b of scan.value.bindings) {
+    if (b.branches.length === 0) {
+      const expr = parseExprFrom(b.rhs, ctx);
+      if (!expr.ok) return err(`in binding '${b.name}': ${expr.error}`);
+      bindings.push({ name: b.name, expr: expr.value });
+      continue;
+    }
+    const cases: BranchCase[] = [];
+    if (b.rhs) {
+      const expr = parseExprFrom(b.rhs, ctx);
+      if (!expr.ok) return err(`in binding '${b.name}': ${expr.error}`);
+      cases.push({ tags: {}, expr: expr.value });
+    }
+    for (const br of b.branches) {
+      const tagP = parseBranchTags(br, ctx);
+      if (!tagP.ok) return err(`in branch of '${b.name}': ${tagP.error}`);
+      if (!tagP.value.rest.trim()) {
+        return err(`in branch of '${b.name}': empty value`);
+      }
+      const expr = parseExprFrom(tagP.value.rest, ctx);
+      if (!expr.ok) return err(`in branch of '${b.name}': ${expr.error}`);
+      cases.push({ tags: tagP.value.tags, expr: expr.value });
+    }
+    bindings.push({ name: b.name, expr: { kind: "branches", cases } });
   }
-  return ok({ bindings });
+  return ok({ axes, bindings });
 }
 
 export { normalizeUnit };

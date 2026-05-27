@@ -90,27 +90,62 @@ See [examples/sample.cogs](./examples/sample.cogs) for the syntax in action.
 Every parsed binding lowers to one shape:
 
 ```
+Program   = { axes, bindings }
 Binding   = { name, expr }
 Expr      = Qty | Ref | Op(+|-|*|/) | Neg | Call | Tiers
+          | Branches | Select | Aggregate
 Qty       = { value: number, unit: { num: string[], den: string[] } }
-Call      = { name, args: Expr[] }
-Tiers     = [{ at: Qty, expr: Expr }]   // step function, sorted asc
+CogValue  = { axes: string[], cells: [{ at: Assignment, qty: Qty }, ...] }
 ```
+
+A scalar binding evaluates to a `CogValue` with no axes (one cell). A
+tagged binding (with branches) evaluates to a `CogValue` with one or more
+axes, one cell per assignment.
 
 Time rates (`per month`, `per week`) collapse into the unit's denominator,
 so `$10000 per month + $2000 per month` unifies as `$/month`.
 
-## Syntax constraints
+## Syntax
 
 - `name = expr` per line; `//` for comments
 - Identifiers are multi-word phrases (`fakemart units per sku per store per week`)
 - After a number, `per <unit>` and `/<unit>` extend the unit's denominator
 - Tiers: `<expr> @ <qty>, <expr> @ <qty>, ...` — step-based (no interpolation)
 - Function calls: `name(arg, arg, ...)` — uses the shared math library
-  (`min`, `max`, `clamp`, `sqrt`, `getRoundTo`, `calcMax`, `getAvg`, etc.)
-- SKU blocks: `sku <name> { ... }` namespaces every binding inside under
-  `<name>.<binding>`. Refs inside resolve local-first then global. Cross-SKU
-  refs use the dotted path (`widget bar.cogs per bar`). See
-  [examples/multi-sku.cogs](./examples/multi-sku.cogs).
+  (`min`, `max`, `clamp`, `sqrt`, `getRoundTo`, `calcMax`, `getAvg`, etc.).
+  Auto-broadcasts over any tagged args.
+
+### Axes & tagged values
+
+Declare axes up front, then tag branches inside a binding:
+
+```cogs
+axis sku = :widget bar :energy bar
+axis channel = :fakemart :indie :amazon :shopify
+
+cogs per bar =
+  :widget bar  $0.64
+  :energy bar  $0.55
+
+price per bar =
+  :widget bar :fakemart  $1.55
+  :widget bar :indie     $1.65
+  :energy bar :fakemart  $1.45
+  :energy bar :indie     $1.55
+
+// formula auto-broadcasts over whichever axes its refs carry
+revenue = price per bar * bars per year
+```
+
+- Tags from the **same axis** on one line = union (`:widget bar :energy bar` = both)
+- Tags from **different axes** on one line = intersection (one specific cell)
+- `:*` on its own = default arm; specific matches win over the wildcard
+- Inside expressions, `<ref> :tag` selects a cell:
+  `widget cogs = cogs per bar :widget bar`
+- Aggregations collapse axes:
+  `total = sum revenue over :sku :channel`
+  `by sku = sum revenue over :channel`
+  (also `avg`, `min`, `max`)
 
 Reports/charts live outside the file — pick fields and views in the CLI/UI.
+See [examples/multi-sku.cogs](./examples/multi-sku.cogs).

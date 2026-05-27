@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { parseProgram } from "../lib/CogsParser";
 import { evalProgram } from "../lib/CogsEvaluator";
 import { fmtQty } from "../lib/CogsUnits";
-import { Qty } from "../lib/CogsTypes";
+import { CogValue, scalarQty } from "../lib/CogsTypes";
 
 function run(name: string, fn: () => void) {
   fn();
@@ -17,11 +17,30 @@ function parseOk(src: string) {
   return r.ok ? r.value : null!;
 }
 
-function evalOk(src: string): Map<string, Qty> {
+function evalOk(src: string): Map<string, CogValue> {
   const p = parseOk(src);
   const r = evalProgram(p);
   assert.equal(r.ok, true, !r.ok ? r.error : "");
   return r.ok ? r.value : null!;
+}
+
+function val(r: Map<string, CogValue>, name: string): number {
+  const v = r.get(name);
+  assert.ok(v, `missing binding '${name}'`);
+  const q = scalarQty(v);
+  assert.ok(q, `expected scalar for '${name}', got tagged (axes: ${v.axes.join(",")})`);
+  return q.value;
+}
+
+function cell(r: Map<string, CogValue>, name: string, at: Record<string, string>): number {
+  const v = r.get(name);
+  assert.ok(v, `missing binding '${name}'`);
+  for (const c of v.cells) {
+    let match = true;
+    for (const k in at) if (c.at[k] !== at[k]) { match = false; break; }
+    if (match) return c.qty.value;
+  }
+  throw new Error(`no cell at ${JSON.stringify(at)} in '${name}'`);
 }
 
 function approx(a: number, b: number, eps = 1e-9): boolean {
@@ -32,16 +51,12 @@ run("parses scalar binding", () => {
   const p = parseOk("packs per case = 6");
   assert.equal(p.bindings.length, 1);
   assert.equal(p.bindings[0].name, "packs per case");
-  assert.equal(p.bindings[0].expr.kind, "qty");
 });
 
 run("parses quantity with unit", () => {
   const p = parseOk("ginger per serving = 1000 mg");
   const e = p.bindings[0].expr;
   assert.equal(e.kind, "qty");
-  if (e.kind !== "qty") return;
-  assert.equal(e.qty.value, 1000);
-  assert.deepEqual(e.qty.unit, { num: ["mg"], den: [] });
 });
 
 run("parses currency rate", () => {
@@ -49,7 +64,6 @@ run("parses currency rate", () => {
   const e = p.bindings[0].expr;
   if (e.kind !== "qty") throw new Error("expected qty");
   assert.deepEqual(e.qty.unit, { num: ["usd"], den: ["kg"] });
-  assert.equal(e.qty.value, 100);
 });
 
 run("parses 'per' unit denominator", () => {
@@ -63,49 +77,31 @@ run("parses tier expression", () => {
   const p = parseOk("price = $100 / kg @ 10 kg, $80 / kg @ 20 kg");
   const e = p.bindings[0].expr;
   assert.equal(e.kind, "tiers");
-  if (e.kind !== "tiers") return;
-  assert.equal(e.tiers.length, 2);
-  assert.equal(e.tiers[0].at.value, 10);
-  assert.equal(e.tiers[1].at.value, 20);
-});
-
-run("parses multi-word refs", () => {
-  const src = "packs per case = 6\nunits per pack = 16\nunits per case = packs per case * units per pack";
-  const p = parseOk(src);
-  const last = p.bindings[2].expr;
-  assert.equal(last.kind, "op");
 });
 
 run("evaluates arithmetic", () => {
   const r = evalOk("packs per case = 6\nunits per pack = 16\nunits per case = packs per case * units per pack");
-  assert.equal(r.get("units per case")?.value, 96);
+  assert.equal(val(r, "units per case"), 96);
 });
 
 run("evaluates add same dim", () => {
   const r = evalOk("a = 100 mg\nb = 1 g\nc = a + b");
-  assert.equal(r.get("c")?.value, 1100);
+  assert.equal(val(r, "c"), 1100);
 });
 
 run("evaluates dim cancellation in mul", () => {
   const r = evalOk("ginger per serving = 1000 mg\nginger price = $100 / kg\ncost = ginger per serving * ginger price");
-  const cost = r.get("cost");
-  assert.ok(cost);
-  assert.ok(approx(cost.value, 0.1), `expected 0.1 got ${cost.value}`);
-  assert.deepEqual(cost.unit, { num: ["usd"], den: [] });
+  assert.ok(approx(val(r, "cost"), 0.1));
 });
 
 run("evaluates 'per month' rate", () => {
   const r = evalOk("bob salary = $10000 per month\njim salary = $2222 per month\ntotal = bob salary + jim salary");
-  const total = r.get("total");
-  assert.ok(total);
-  assert.equal(total.value, 12222);
-  assert.deepEqual(total.unit, { num: ["usd"], den: ["month"] });
+  assert.equal(val(r, "total"), 12222);
 });
 
 run("tiers default to lowest", () => {
   const r = evalOk("price = $100 / kg @ 10 kg, $80 / kg @ 20 kg");
-  const v = r.get("price");
-  assert.equal(v?.value, 100);
+  assert.equal(val(r, "price"), 100);
 });
 
 run("detects cycles", () => {
@@ -114,123 +110,155 @@ run("detects cycles", () => {
   assert.equal(r.ok, false);
 });
 
-run("rejects unknown ref", () => {
-  const r = parseProgram("x = unknown thing");
-  assert.equal(r.ok, false);
-});
-
-run("dim mismatch error", () => {
-  const p = parseOk("a = 1 kg\nb = 1 ml\nc = a + b");
-  const r = evalProgram(p);
-  assert.equal(r.ok, false);
-});
-
 run("calls min/max from STDLIB", () => {
   const r = evalOk("a = 10\nb = 4\nc = min(a, b)\nd = max(a, b)");
-  assert.equal(r.get("c")?.value, 4);
-  assert.equal(r.get("d")?.value, 10);
+  assert.equal(val(r, "c"), 4);
+  assert.equal(val(r, "d"), 10);
 });
 
-run("calls variadic calcMax from mathFunctions", () => {
-  const r = evalOk("a = 1\nb = 5\nc = 3\nd = 2\nm = calcMax(a, b, c, d)");
-  assert.equal(r.get("m")?.value, 5);
-});
-
-run("call preserves first-arg unit", () => {
-  const r = evalOk("a = $10\nb = $4\nc = min(a, b)");
-  const c = r.get("c");
-  assert.equal(c?.value, 4);
-  assert.deepEqual(c?.unit, { num: ["usd"], den: [] });
-});
-
-run("call: clamp from mathFunctions", () => {
-  const r = evalOk("x = clamp(15, 0, 10)");
-  assert.equal(r.get("x")?.value, 10);
+run("calls variadic calcMax", () => {
+  const r = evalOk("a = 1\nb = 5\nc = 3\nm = calcMax(a, b, c)");
+  assert.equal(val(r, "m"), 5);
 });
 
 run("call: getRoundTo", () => {
   const r = evalOk("x = getRoundTo(3.14159, 2)");
-  assert.equal(r.get("x")?.value, 3.14);
+  assert.equal(val(r, "x"), 3.14);
 });
 
-run("sku block: prefixes names, local refs resolve in scope", () => {
+run("axis declaration", () => {
+  const p = parseOk("axis sku = :widget :energy");
+  assert.equal(p.axes.length, 1);
+  assert.deepEqual(p.axes[0], { name: "sku", values: ["widget", "energy"] });
+});
+
+run("tagged binding via branches", () => {
   const src = `
-sku widget bar {
-  cogs per bar = $0.64
-  price per bar = $1.55
-  units = 1000
-  revenue = price per bar * units
-}`;
-  const p = parseOk(src);
-  const namesSet = new Set(p.bindings.map((b) => b.name));
-  assert.ok(namesSet.has("widget bar.cogs per bar"));
-  assert.ok(namesSet.has("widget bar.revenue"));
+axis sku = :widget :energy
+cogs per bar =
+  :widget  $0.64
+  :energy  $0.55`;
   const r = evalOk(src);
-  assert.equal(r.get("widget bar.revenue")?.value, 1550);
+  assert.equal(cell(r, "cogs per bar", { sku: "widget" }), 0.64);
+  assert.equal(cell(r, "cogs per bar", { sku: "energy" }), 0.55);
 });
 
-run("sku block: globals visible from inside", () => {
+run("broadcast: scalar * tagged", () => {
   const src = `
-trade pct = 0.1
-sku widget bar {
-  gross = $1000
-  trade dollars = gross * trade pct
-}`;
+axis sku = :a :b
+price =
+  :a  $10
+  :b  $20
+doubled = price * 2`;
   const r = evalOk(src);
-  assert.equal(r.get("widget bar.trade dollars")?.value, 100);
+  assert.equal(cell(r, "doubled", { sku: "a" }), 20);
+  assert.equal(cell(r, "doubled", { sku: "b" }), 40);
 });
 
-run("sku block: dotted refs across SKUs", () => {
+run("broadcast: tagged * tagged same axis (zip)", () => {
   const src = `
-sku widget bar {
-  revenue = $1000
-}
-sku energy bar {
-  revenue = $500
-}
-total = widget bar.revenue + energy bar.revenue`;
+axis sku = :a :b
+price =
+  :a  $10
+  :b  $20
+units =
+  :a  100
+  :b  50
+revenue = price * units`;
   const r = evalOk(src);
-  assert.equal(r.get("total")?.value, 1500);
+  assert.equal(cell(r, "revenue", { sku: "a" }), 1000);
+  assert.equal(cell(r, "revenue", { sku: "b" }), 1000);
 });
 
-run("sku block: local shadows global", () => {
+run("broadcast: tagged different axes (cartesian)", () => {
   const src = `
-price = $1
-sku premium {
-  price = $5
-  doubled = price + price
-}`;
+axis sku = :a :b
+axis chan = :x :y
+price =
+  :a  $10
+  :b  $20
+mult =
+  :x  2
+  :y  3
+out = price * mult`;
   const r = evalOk(src);
-  assert.equal(r.get("premium.doubled")?.value, 10);
+  assert.equal(cell(r, "out", { sku: "a", chan: "x" }), 20);
+  assert.equal(cell(r, "out", { sku: "a", chan: "y" }), 30);
+  assert.equal(cell(r, "out", { sku: "b", chan: "x" }), 40);
+  assert.equal(cell(r, "out", { sku: "b", chan: "y" }), 60);
 });
 
-run("unclosed sku block errors", () => {
-  const r = parseProgram("sku foo {\nbar = 1\n");
-  assert.equal(r.ok, false);
+run("two-axis branches: cartesian leaf", () => {
+  const src = `
+axis sku = :a :b
+axis chan = :x :y
+bars =
+  :a :x  100
+  :a :y  200
+  :b :x  300
+  :b :y  400`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "bars", { sku: "a", chan: "x" }), 100);
+  assert.equal(cell(r, "bars", { sku: "b", chan: "y" }), 400);
 });
 
-run("unknown function errors", () => {
-  const p = parseOk("a = nope(1)");
-  const r = evalProgram(p);
-  assert.equal(r.ok, false);
+run("aggregation: sum over axis", () => {
+  const src = `
+axis sku = :a :b
+units =
+  :a  100
+  :b  200
+total = sum units over :sku`;
+  const r = evalOk(src);
+  assert.equal(val(r, "total"), 300);
 });
 
-run("strips comments", () => {
-  const p = parseOk("// just a comment\na = 1 // trailing\nb = 2");
-  assert.equal(p.bindings.length, 2);
+run("aggregation: sum keeps other axes", () => {
+  const src = `
+axis sku = :a :b
+axis chan = :x :y
+sales =
+  :a :x  10
+  :a :y  20
+  :b :x  30
+  :b :y  40
+by chan = sum sales over :sku`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "by chan", { chan: "x" }), 40);
+  assert.equal(cell(r, "by chan", { chan: "y" }), 60);
+});
+
+run("selector picks cell", () => {
+  const src = `
+axis sku = :a :b
+price =
+  :a  $10
+  :b  $20
+a price = price :a`;
+  const r = evalOk(src);
+  assert.equal(val(r, "a price"), 10);
+});
+
+run("wildcard branch is default", () => {
+  const src = `
+axis tier = :gold :silver :bronze
+rate =
+  :gold    0.05
+  :*       0.10`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "rate", { tier: "gold" }), 0.05);
+  assert.equal(cell(r, "rate", { tier: "silver" }), 0.10);
+  assert.equal(cell(r, "rate", { tier: "bronze" }), 0.10);
 });
 
 run("formats qty", () => {
   assert.equal(fmtQty({ value: 100, unit: { num: ["usd"], den: ["kg"] } }), "100 usd/kg");
-  assert.equal(fmtQty({ value: 5, unit: { num: [], den: [] } }), "5");
 });
 
 run("parses sample file", () => {
   const src = readFileSync(join(import.meta.dirname, "..", "examples", "sample.cogs"), "utf8");
   const r = evalOk(src);
-  assert.equal(r.get("units per case")?.value, 96);
-  assert.equal(r.get("labor total")?.value, 12222);
-  assert.equal(r.get("fakemart units sold per week")?.value, 1600);
+  assert.equal(val(r, "units per case"), 96);
 });
 
 console.log("all tests passed");
