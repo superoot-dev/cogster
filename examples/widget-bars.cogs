@@ -130,8 +130,11 @@ shopify subs margin per bar = shopify subs net per bar - cogs per bar
 // --- monthly burn summary ---
 monthly fixed burn = payroll monthly + opex monthly + marketing monthly
 
-// --- charts ---
-[oats cost per bar, almond butter cost per bar, honey cost per bar, dark chocolate cost per bar, sea salt cost per bar] as pie
-[recipe cost per bar, packaging cost per bar, processing cost per bar] as bar
-[fakemart margin per bar, indie margin per bar, amazon margin per bar, shopify subs margin per bar] as bar
-[payroll monthly, opex monthly, marketing monthly] as pie
+// --- using shared math functions from lib/functions ---
+marketing budget cap = $5000
+marketing capped = min(marketing budget cap, marketing monthly)
+
+best channel margin = calcMax(fakemart margin per bar, indie margin per bar, amazon margin per bar, shopify subs margin per bar)
+
+cogs rounded = getRoundTo(cogs per bar, 4)
+

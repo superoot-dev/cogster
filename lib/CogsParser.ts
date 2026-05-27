@@ -1,15 +1,15 @@
 import { Result, err, ok } from "./CoreTypings";
-import { Binding, Chart, ChartKind, Expr, Program, Qty, Range, TimeUnitSchema, Unit } from "./CogsTypes";
+import { Binding, Expr, Program, Qty, Unit } from "./CogsTypes";
 import { parseUnit } from "./CogsUnits";
 import { normalizeUnit } from "./UnitHelpers";
 
-type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "[" | "]" | "$";
+type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "$";
 type Tok =
   | { kind: "num"; value: number; pos: number }
   | { kind: "word"; value: string; pos: number }
   | { kind: "op"; value: OpCh; pos: number };
 
-const OPS: Set<OpCh> = new Set(["+", "-", "*", "/", "(", ")", "@", ",", "[", "]", "$"]);
+const OPS: Set<OpCh> = new Set(["+", "-", "*", "/", "(", ")", "@", ",", "$"]);
 
 function lex(src: string): Result<Tok[], string> {
   const out: Tok[] = [];
@@ -75,8 +75,6 @@ function isOp(t: Tok | null, v: string): boolean {
   return !!t && t.kind === "op" && t.value === v;
 }
 
-const RATE_TIME_WORDS = new Set(["hour", "day", "week", "month", "year"]);
-
 function parseQty(c: Cursor): Result<Qty, string> {
   let currency = false;
   const t = peek(c);
@@ -126,13 +124,45 @@ function parseQty(c: Cursor): Result<Qty, string> {
   return ok({ value: n.value, unit });
 }
 
-function parseRef(c: Cursor, names: Set<string>): Result<Expr, string> {
+function parseCallArgs(c: Cursor, names: Set<string>): Result<Expr[], string> {
+  const open = take(c);
+  if (!isOp(open, "(")) return err(`expected '(' at ${open?.pos ?? "EOF"}`);
+  const args: Expr[] = [];
+  if (isOp(peek(c), ")")) {
+    take(c);
+    return ok(args);
+  }
+  while (true) {
+    const a = parseAddSub(c, names);
+    if (!a.ok) return a;
+    args.push(a.value);
+    const nxt = peek(c);
+    if (isOp(nxt, ",")) {
+      take(c);
+      continue;
+    }
+    if (isOp(nxt, ")")) {
+      take(c);
+      return ok(args);
+    }
+    return err(`expected ',' or ')' at ${nxt?.pos ?? "EOF"}`);
+  }
+}
+
+function parseWordHead(c: Cursor, names: Set<string>): Result<Expr, string> {
+  const first = peek(c);
+  if (!first || first.kind !== "word") return err(`expected identifier at ${first?.pos ?? "EOF"}`);
+  if (peek(c, 1)?.kind === "op" && (peek(c, 1) as Tok & { value: OpCh }).value === "(") {
+    take(c);
+    const args = parseCallArgs(c, names);
+    if (!args.ok) return args;
+    return ok({ kind: "call", name: first.value, args: args.value });
+  }
   const startI = c.i;
   const words: string[] = [];
   while (peek(c)?.kind === "word") {
     words.push((take(c) as Tok & { kind: "word" }).value);
   }
-  if (words.length === 0) return err(`expected identifier at ${peek(c)?.pos ?? "EOF"}`);
   for (let n = words.length; n > 0; n -= 1) {
     const candidate = words.slice(0, n).join(" ");
     if (names.has(candidate)) {
@@ -165,7 +195,7 @@ function parseFactor(c: Cursor, names: Set<string>): Result<Expr, string> {
     if (!q.ok) return q;
     return ok({ kind: "qty", qty: q.value });
   }
-  return parseRef(c, names);
+  return parseWordHead(c, names);
 }
 
 function parseMulDiv(c: Cursor, names: Set<string>): Result<Expr, string> {
@@ -228,90 +258,22 @@ function parseExprFrom(src: string, names: Set<string>): Result<Expr, string> {
   const e = parseTierBody(c, names);
   if (!e.ok) return e;
   if (c.i < c.toks.length) {
-    return err(`unexpected '${c.toks[c.i].kind === "op" ? (c.toks[c.i] as { value: string }).value : c.toks[c.i].kind}' at ${c.toks[c.i].pos}`);
+    return err(`unexpected token at ${c.toks[c.i].pos}`);
   }
   return e;
 }
 
-function parseChart(line: string, names: Set<string>): Result<Chart, string> {
-  const close = findTopClose(line);
-  if (close < 0) return err("unterminated '['");
-  const inside = line.slice(1, close);
-  const tail = line.slice(close + 1);
-  const refs = inside
-    .split(",")
-    .map(collapseSpaces)
-    .filter(Boolean);
-  for (const r of refs) {
-    if (!names.has(r)) return err(`unknown reference '${r}' in chart`);
-  }
-  const range = parseRangeTail(tail);
-  if (!range.ok) return range;
-  return ok({ refs, range: range.value.range, as: range.value.as });
-}
-
-function findTopClose(s: string): number {
-  let depth = 0;
-  for (let i = 0; i < s.length; i += 1) {
-    if (s[i] === "[") depth += 1;
-    else if (s[i] === "]") {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
-  }
-  return -1;
-}
-
-function parseRangeTail(tail: string): Result<{ range: Range; as: ChartKind | null }, string> {
-  const range: Range = { from: null, to: null, per: null };
-  let as: ChartKind | null = null;
-  const t = collapseSpaces(tail);
-  if (!t) return ok({ range, as });
-  const words = t.split(" ");
-  let i = 0;
-  while (i < words.length) {
-    const w = words[i];
-    if (w === "from" && i + 1 < words.length) {
-      range.from = words[i + 1];
-      i += 2;
-      continue;
-    }
-    if (w === "to" && i + 1 < words.length) {
-      range.to = words[i + 1];
-      i += 2;
-      continue;
-    }
-    if (w === "per" && i + 1 < words.length) {
-      const parsed = TimeUnitSchema.safeParse(normalizeUnit(words[i + 1]));
-      if (!parsed.success) return err(`bad 'per' time unit '${words[i + 1]}'`);
-      range.per = parsed.data;
-      i += 2;
-      continue;
-    }
-    if (w === "as" && i + 1 < words.length) {
-      const kind = words[i + 1];
-      if (kind !== "pie" && kind !== "line" && kind !== "bar") return err(`bad chart kind '${kind}'`);
-      as = kind;
-      i += 2;
-      continue;
-    }
-    return err(`unexpected '${w}' in chart tail`);
-  }
-  return ok({ range, as });
-}
-
-type RawLine = { kind: "binding"; name: string; rhs: string } | { kind: "chart"; src: string };
+type RawLine = { name: string; rhs: string };
 
 function classify(line: string): RawLine | null {
   const t = collapseSpaces(line);
   if (!t) return null;
-  if (t.startsWith("[")) return { kind: "chart", src: t };
   const eq = t.indexOf("=");
   if (eq < 0) return null;
   const name = collapseSpaces(t.slice(0, eq));
   const rhs = t.slice(eq + 1).trim();
   if (!name || !rhs) return null;
-  return { kind: "binding", name, rhs };
+  return { name, rhs };
 }
 
 export function parseProgram(src: string): Result<Program, string> {
@@ -319,23 +281,16 @@ export function parseProgram(src: string): Result<Program, string> {
   const lines = clean.split(/\n/).map(classify).filter(Boolean) as RawLine[];
   const names = new Set<string>();
   for (const ln of lines) {
-    if (ln.kind === "binding") {
-      if (names.has(ln.name)) return err(`duplicate binding '${ln.name}'`);
-      names.add(ln.name);
-    }
+    if (names.has(ln.name)) return err(`duplicate binding '${ln.name}'`);
+    names.add(ln.name);
   }
   const bindings: Binding[] = [];
-  const charts: Chart[] = [];
   for (const ln of lines) {
-    if (ln.kind === "binding") {
-      const expr = parseExprFrom(ln.rhs, names);
-      if (!expr.ok) return err(`in binding '${ln.name}': ${expr.error}`);
-      bindings.push({ name: ln.name, expr: expr.value });
-    } else {
-      const ch = parseChart(ln.src, names);
-      if (!ch.ok) return ch;
-      charts.push(ch.value);
-    }
+    const expr = parseExprFrom(ln.rhs, names);
+    if (!expr.ok) return err(`in binding '${ln.name}': ${expr.error}`);
+    bindings.push({ name: ln.name, expr: expr.value });
   }
-  return ok({ bindings, charts });
+  return ok({ bindings });
 }
+
+export { normalizeUnit };

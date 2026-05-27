@@ -1,6 +1,9 @@
 import { Result, err, ok } from "./CoreTypings";
-import { Binding, Expr, Program, Qty } from "./CogsTypes";
+import { Binding, DIMENSIONLESS, Expr, Program, Qty } from "./CogsTypes";
 import { addQty, divQty, mulQty, negQty, subQty } from "./CogsUnits";
+import { STDLIB, buildEvalFunctions, ExprEvalFunc } from "./ScriptEvaluator";
+
+const FNS: Record<string, ExprEvalFunc> = { ...buildEvalFunctions(), ...STDLIB };
 
 export type Env = {
   bindings: Map<string, Binding>;
@@ -43,6 +46,19 @@ export function evalExpr(expr: Expr, env: Env): Result<Qty, string> {
     if (expr.op === "-") return subQty(l.value, r.value);
     if (expr.op === "*") return mulQty(l.value, r.value);
     return divQty(l.value, r.value);
+  }
+  if (expr.kind === "call") {
+    const fn = FNS[expr.name];
+    if (!fn) return err(`unknown function '${expr.name}'`);
+    const argQtys: Qty[] = [];
+    for (const a of expr.args) {
+      const r = evalExpr(a, env);
+      if (!r.ok) return r;
+      argQtys.push(r.value);
+    }
+    const out = fn(...argQtys.map((q) => q.value));
+    if (typeof out !== "number") return err(`function '${expr.name}' returned non-number`);
+    return ok({ value: out, unit: argQtys[0]?.unit ?? DIMENSIONLESS });
   }
   if (expr.tiers.length === 0) return err("empty tier expression");
   return evalExpr(expr.tiers[0].expr, env);

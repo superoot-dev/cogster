@@ -27,7 +27,3 @@ fakemart total stores = 100
 fakemart units per sku per store per week = 16
 fakemart units sold per week = fakemart total stores * fakemart units per sku per store per week
 
-// charts
-[ginger cost per serving, lemon cost per serving] as pie
-[bob salary, jim salary, labor total] as bar
-[fakemart units sold per week] from 2026-01-01 to 2026-12-31 per month as line

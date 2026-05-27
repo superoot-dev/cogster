@@ -339,7 +339,7 @@ export function evaluateExprCore(ast: Expr, vars: TVars, funcs: Record<string, E
 
 const n = castToNumber;
 
-const STDLIB: Record<string, ExprEvalFunc> = {
+export const STDLIB: Record<string, ExprEvalFunc> = {
   add: (a, b) => n(a) + n(b),
   sub: (a, b) => n(a) - n(b),
   mul: (a, b) => n(a) * n(b),

@@ -91,10 +91,10 @@ Every parsed binding lowers to one shape:
 
 ```
 Binding   = { name, expr }
-Expr      = Qty | Ref | Op(+|-|*|/) | Neg | Tiers
+Expr      = Qty | Ref | Op(+|-|*|/) | Neg | Call | Tiers
 Qty       = { value: number, unit: { num: string[], den: string[] } }
+Call      = { name, args: Expr[] }
 Tiers     = [{ at: Qty, expr: Expr }]   // step function, sorted asc
-Chart     = { refs: string[], range: { from, to, per }, as }
 ```
 
 Time rates (`per month`, `per week`) collapse into the unit's denominator,
@@ -106,4 +106,6 @@ so `$10000 per month + $2000 per month` unifies as `$/month`.
 - Identifiers are multi-word phrases (`fakemart units per sku per store per week`)
 - After a number, `per <unit>` and `/<unit>` extend the unit's denominator
 - Tiers: `<expr> @ <qty>, <expr> @ <qty>, ...` — step-based (no interpolation)
-- Charts: `[ref, ref, ...] from <date> to <date> per <time> as <pie|line|bar>`
+- Function calls: `name(arg, arg, ...)` — uses the shared math library
+  (`min`, `max`, `clamp`, `sqrt`, `getRoundTo`, `calcMax`, `getAvg`, etc.).
+  Reports/charts live outside the file — pick fields and views in the CLI/UI.

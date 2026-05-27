@@ -125,22 +125,38 @@ run("dim mismatch error", () => {
   assert.equal(r.ok, false);
 });
 
-run("parses charts", () => {
-  const src = "a = 1\nb = 2\n[a, b] as pie";
-  const p = parseOk(src);
-  assert.equal(p.charts.length, 1);
-  assert.deepEqual(p.charts[0].refs, ["a", "b"]);
-  assert.equal(p.charts[0].as, "pie");
+run("calls min/max from STDLIB", () => {
+  const r = evalOk("a = 10\nb = 4\nc = min(a, b)\nd = max(a, b)");
+  assert.equal(r.get("c")?.value, 4);
+  assert.equal(r.get("d")?.value, 10);
 });
 
-run("parses chart time range", () => {
-  const src = "a = 1\n[a] from 2026-01-01 to 2026-12-31 per month as line";
-  const p = parseOk(src);
-  const c = p.charts[0];
-  assert.equal(c.range.from, "2026-01-01");
-  assert.equal(c.range.to, "2026-12-31");
-  assert.equal(c.range.per, "month");
-  assert.equal(c.as, "line");
+run("calls variadic calcMax from mathFunctions", () => {
+  const r = evalOk("a = 1\nb = 5\nc = 3\nd = 2\nm = calcMax(a, b, c, d)");
+  assert.equal(r.get("m")?.value, 5);
+});
+
+run("call preserves first-arg unit", () => {
+  const r = evalOk("a = $10\nb = $4\nc = min(a, b)");
+  const c = r.get("c");
+  assert.equal(c?.value, 4);
+  assert.deepEqual(c?.unit, { num: ["usd"], den: [] });
+});
+
+run("call: clamp from mathFunctions", () => {
+  const r = evalOk("x = clamp(15, 0, 10)");
+  assert.equal(r.get("x")?.value, 10);
+});
+
+run("call: getRoundTo", () => {
+  const r = evalOk("x = getRoundTo(3.14159, 2)");
+  assert.equal(r.get("x")?.value, 3.14);
+});
+
+run("unknown function errors", () => {
+  const p = parseOk("a = nope(1)");
+  const r = evalProgram(p);
+  assert.equal(r.ok, false);
 });
 
 run("strips comments", () => {

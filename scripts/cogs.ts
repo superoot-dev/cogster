@@ -48,11 +48,4 @@ if (useJson) {
   for (const [k, v] of evald.value) {
     console.log(`${k.padEnd(width)}  ${fmtQty(v)}`);
   }
-  if (parsed.value.charts.length > 0) {
-    console.log("\ncharts:");
-    for (const ch of parsed.value.charts) {
-      const r = `${ch.range.from ?? ""}..${ch.range.to ?? ""}${ch.range.per ? ` per ${ch.range.per}` : ""}`.trim();
-      console.log(`  ${ch.as ?? "pie"}: [${ch.refs.join(", ")}]${r !== ".." ? ` ${r}` : ""}`);
-    }
-  }
 }
