@@ -123,15 +123,24 @@ Declare axes up front, then tag branches inside a binding:
 axis sku = :widget bar :energy bar
 axis channel = :fakemart :indie :amazon :shopify
 
+// one branch per line
 cogs per bar =
   :widget bar  $0.64
   :energy bar  $0.55
 
+// inline-tagged literal — one-liner for short tables
+tier rate = :gold 0.05, :silver 0.08, :bronze 0.10
+
+// 2D table — markdown-style matrix for dense Cartesian data
 price per bar =
-  :widget bar :fakemart  $1.55
-  :widget bar :indie     $1.65
-  :energy bar :fakemart  $1.45
-  :energy bar :indie     $1.55
+  |               | :fakemart | :indie | :amazon | :shopify
+  | :widget bar   | $1.55     | $1.65  | $2.50   | $1.69
+  | :energy bar   | $1.45     | $1.55  | $2.75   | $1.79
+
+// default-via-RHS — bare value on the '=' line is the default arm
+commission rate = 0.07
+  :gold     0.05
+  :silver   0.06
 
 // formula auto-broadcasts over whichever axes its refs carry
 revenue = price per bar * bars per year
@@ -140,12 +149,15 @@ revenue = price per bar * bars per year
 - Tags from the **same axis** on one line = union (`:widget bar :energy bar` = both)
 - Tags from **different axes** on one line = intersection (one specific cell)
 - `:*` on its own = default arm; specific matches win over the wildcard
+- Tag values can include `-` and start with digits (`:tier-1`, `:b2b`, `:q4-2026`)
 - Inside expressions, `<ref> :tag` selects a cell:
   `widget cogs = cogs per bar :widget bar`
 - Aggregations collapse axes:
   `total = sum revenue over :sku :channel`
   `by sku = sum revenue over :channel`
   (also `avg`, `min`, `max`)
+- **Line continuation:** a line ending in `+`, `-`, `*`, `/`, `(`, or `,` continues
+  on the next line (works for top-level RHS and inside branches).
 
 Reports/charts live outside the file — pick fields and views in the CLI/UI.
 See [examples/multi-sku.cogs](./examples/multi-sku.cogs).

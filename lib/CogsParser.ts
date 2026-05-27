@@ -15,11 +15,22 @@ const RESERVED_WORDS = new Set(["axis", "over", "sum", "avg", "min", "max"]);
 function lex(src: string): Result<Tok[], string> {
   const out: Tok[] = [];
   let i = 0;
+  let tagMode = false;
   while (i < src.length) {
     const c = src[i];
     if (/\s/.test(c)) {
+      tagMode = false;
       i += 1;
       continue;
+    }
+    if (tagMode) {
+      const m = src.slice(i).match(/^[A-Za-z0-9_][A-Za-z0-9_-]*/);
+      if (m) {
+        out.push({ kind: "word", value: m[0], pos: i });
+        i += m[0].length;
+        tagMode = false;
+        continue;
+      }
     }
     if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] ?? ""))) {
       const m = src.slice(i).match(/^[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?|^\.[0-9]+([eE][+-]?[0-9]+)?/);
@@ -31,10 +42,11 @@ function lex(src: string): Result<Tok[], string> {
     if (isOpCh(c)) {
       out.push({ kind: "op", value: c, pos: i });
       i += 1;
+      if (c === ":") tagMode = true;
       continue;
     }
     if (c === "_" || /[A-Za-z]/.test(c)) {
-      const m = src.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+      const m = src.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*/);
       if (!m) return err(`bad word at ${i}`);
       out.push({ kind: "word", value: m[0], pos: i });
       i += m[0].length;
@@ -392,7 +404,8 @@ type RawAxis = { name: string; values: string[] };
 type RawBinding = { name: string; rhs: string; branches: string[] };
 
 function isBranchLine(line: string): boolean {
-  return line.trimStart().startsWith(":");
+  const t = line.trimStart();
+  return t.startsWith(":") || t.startsWith("|");
 }
 
 function parseAxisLine(line: string): Result<RawAxis, string> {
@@ -408,6 +421,57 @@ function parseAxisLine(line: string): Result<RawAxis, string> {
 
 type ScanResult = { axes: RawAxis[]; bindings: RawBinding[] };
 
+const CONTINUATION_TAIL = /[+\-*/(,]$/;
+
+function endsWithContinuation(s: string): boolean {
+  return CONTINUATION_TAIL.test(s.trimEnd());
+}
+
+function splitTopLevelCommas(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s[i];
+    if (c === "(") depth += 1;
+    else if (c === ")") depth -= 1;
+    else if (c === "," && depth === 0) {
+      out.push(s.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(s.slice(start));
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
+function expandMatrix(name: string, rows: string[]): Result<string[], string> {
+  if (rows.length < 2) return err(`matrix '${name}' needs a header row and at least one data row`);
+  const cells = rows.map((r) => r.split("|").map((s) => s.trim()));
+  const headerCells = cells[0];
+  const colTags: string[] = [];
+  for (const cell of headerCells) {
+    if (!cell) continue;
+    if (!cell.startsWith(":")) return err(`matrix '${name}' header cell must be a tag (':...'), got '${cell}'`);
+    colTags.push(cell);
+  }
+  if (colTags.length === 0) return err(`matrix '${name}' header has no column tags`);
+  const branches: string[] = [];
+  for (let r = 1; r < cells.length; r += 1) {
+    const dataCells = cells[r].filter((c) => c !== "");
+    if (dataCells.length === 0) continue;
+    const rowTag = dataCells[0];
+    if (!rowTag.startsWith(":")) return err(`matrix '${name}' row ${r} label must be a tag, got '${rowTag}'`);
+    const vals = dataCells.slice(1);
+    if (vals.length !== colTags.length) {
+      return err(`matrix '${name}' row ${r} has ${vals.length} values; header has ${colTags.length} columns`);
+    }
+    for (let c = 0; c < colTags.length; c += 1) {
+      branches.push(`${rowTag} ${colTags[c]} ${vals[c]}`);
+    }
+  }
+  return ok(branches);
+}
+
 function scanLines(src: string): Result<ScanResult, string> {
   const clean = stripComments(src);
   const lines = clean.split("\n");
@@ -415,8 +479,7 @@ function scanLines(src: string): Result<ScanResult, string> {
   const bindings: RawBinding[] = [];
   let i = 0;
   while (i < lines.length) {
-    const raw = lines[i];
-    const trimmed = raw.trim();
+    const trimmed = lines[i].trim();
     if (!trimmed) {
       i += 1;
       continue;
@@ -433,21 +496,53 @@ function scanLines(src: string): Result<ScanResult, string> {
       return err(`unrecognized line (expected 'name = expr' or 'axis name = :tag :tag'): '${trimmed}'`);
     }
     const name = collapseSpaces(trimmed.slice(0, eq));
-    const rhs = trimmed.slice(eq + 1).trim();
-    const branches: string[] = [];
+    let rhs = trimmed.slice(eq + 1).trim();
     i += 1;
-    while (i < lines.length) {
-      const next = lines[i];
-      if (!next.trim()) {
+    while (rhs && endsWithContinuation(rhs) && i < lines.length) {
+      const next = lines[i].trim();
+      if (!next) {
         i += 1;
         continue;
       }
-      if (!isBranchLine(next)) break;
-      branches.push(next.trim());
+      if (isBranchLine(next)) break;
+      rhs = `${rhs} ${next}`;
       i += 1;
+    }
+    let branches: string[] = [];
+    if (rhs.startsWith(":")) {
+      branches = splitTopLevelCommas(rhs);
+      rhs = "";
+    }
+    while (i < lines.length) {
+      const next = lines[i];
+      const nextTrim = next.trim();
+      if (!nextTrim) {
+        i += 1;
+        continue;
+      }
+      if (isBranchLine(next)) {
+        branches.push(nextTrim);
+        i += 1;
+        continue;
+      }
+      if (branches.length > 0 && endsWithContinuation(branches[branches.length - 1])) {
+        branches[branches.length - 1] = `${branches[branches.length - 1]} ${nextTrim}`;
+        i += 1;
+        continue;
+      }
+      break;
     }
     if (!name || (!rhs && branches.length === 0)) {
       return err(`bad binding at '${name || trimmed}'`);
+    }
+    const hasMatrix = branches.some((b) => b.startsWith("|"));
+    if (hasMatrix) {
+      if (!branches.every((b) => b.startsWith("|"))) {
+        return err(`matrix '${name}': all rows must start with '|'`);
+      }
+      const expanded = expandMatrix(name, branches);
+      if (!expanded.ok) return expanded;
+      branches = expanded.value;
     }
     bindings.push({ name, rhs, branches });
   }
