@@ -1,7 +1,6 @@
 import { Result, err, ok } from "./CoreTypings";
 import { AggOp, Axis, BranchCase, Binding, Expr, Program, Qty, TagSet, Unit } from "./CogsTypes";
 import { parseUnit } from "./CogsUnits";
-import { normalizeUnit } from "./UnitHelpers";
 
 type OpCh = "+" | "-" | "*" | "/" | "(" | ")" | "@" | "," | "$" | ":";
 type Tok =
@@ -377,6 +376,9 @@ function parseBranchTags(src: string, ctx: Ctx): Result<{ tags: TagSet; rest: st
   while (isOp(peek(c), ":")) {
     const t = parseTagAfterColon(c, ctx);
     if (!t.ok) return t;
+    if (t.value.kind === "axis") {
+      return err(`branch tag expects a value, got axis name '${t.value.name}'`);
+    }
     if (t.value.kind === "tag") {
       if (!tags[t.value.axis]) tags[t.value.axis] = [];
       tags[t.value.axis].push(t.value.value);
@@ -393,26 +395,15 @@ function isBranchLine(line: string): boolean {
   return line.trimStart().startsWith(":");
 }
 
-function parseAxisLine(line: string): RawAxis | null {
+function parseAxisLine(line: string): Result<RawAxis, string> {
   const m = line.match(/^axis\s+(.+?)\s*=\s*(.+)$/);
-  if (!m) return null;
+  if (!m) return err(`bad axis declaration: '${line}'`);
   const name = collapseSpaces(m[1]);
   const valsStr = m[2].trim();
-  const values: string[] = [];
-  let buf = "";
-  let started = false;
-  for (let i = 0; i < valsStr.length; i += 1) {
-    const ch = valsStr[i];
-    if (ch === ":") {
-      if (started && buf.trim()) values.push(collapseSpaces(buf));
-      buf = "";
-      started = true;
-      continue;
-    }
-    if (started) buf += ch;
-  }
-  if (buf.trim()) values.push(collapseSpaces(buf));
-  return { name, values };
+  if (!valsStr.startsWith(":")) return err(`axis '${name}' values must start with ':', got '${valsStr}'`);
+  const parts = valsStr.split(/\s*:/).slice(1).map(collapseSpaces).filter(Boolean);
+  if (parts.length === 0) return err(`axis '${name}' has no values`);
+  return ok({ name, values: parts });
 }
 
 type ScanResult = { axes: RawAxis[]; bindings: RawBinding[] };
@@ -432,44 +423,28 @@ function scanLines(src: string): Result<ScanResult, string> {
     }
     if (trimmed.startsWith("axis ")) {
       const ax = parseAxisLine(trimmed);
-      if (!ax) return err(`bad axis declaration: '${trimmed}'`);
-      axes.push(ax);
+      if (!ax.ok) return ax;
+      axes.push(ax.value);
       i += 1;
       continue;
     }
     const eq = trimmed.indexOf("=");
     if (eq < 0) {
-      i += 1;
-      continue;
+      return err(`unrecognized line (expected 'name = expr' or 'axis name = :tag :tag'): '${trimmed}'`);
     }
     const name = collapseSpaces(trimmed.slice(0, eq));
-    const rhsRest = trimmed.slice(eq + 1).trim();
+    const rhs = trimmed.slice(eq + 1).trim();
     const branches: string[] = [];
-    let rhs = rhsRest;
-    if (!rhsRest) {
-      i += 1;
-      while (i < lines.length) {
-        const next = lines[i];
-        if (!next.trim()) {
-          i += 1;
-          continue;
-        }
-        if (!isBranchLine(next)) break;
-        branches.push(next.trim());
+    i += 1;
+    while (i < lines.length) {
+      const next = lines[i];
+      if (!next.trim()) {
         i += 1;
+        continue;
       }
-    } else {
+      if (!isBranchLine(next)) break;
+      branches.push(next.trim());
       i += 1;
-      while (i < lines.length) {
-        const next = lines[i];
-        if (!next.trim()) {
-          i += 1;
-          continue;
-        }
-        if (!isBranchLine(next)) break;
-        branches.push(next.trim());
-        i += 1;
-      }
     }
     if (!name || (!rhs && branches.length === 0)) {
       return err(`bad binding at '${name || trimmed}'`);
@@ -533,5 +508,3 @@ export function parseProgram(src: string): Result<Program, string> {
   }
   return ok({ axes, bindings });
 }
-
-export { normalizeUnit };

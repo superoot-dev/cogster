@@ -4,7 +4,6 @@ import { hideBin } from "yargs/helpers";
 import { parseProgram } from "../lib/CogsParser";
 import { evalProgram } from "../lib/CogsEvaluator";
 import { fmtQty } from "../lib/CogsUnits";
-import { CogValue } from "../lib/CogsTypes";
 
 const argv = yargs(hideBin(process.argv))
   .scriptName("cogs")
@@ -59,12 +58,22 @@ if (useJson) {
   }
   console.log(JSON.stringify(out, null, 2));
 } else {
-  const width = Math.max(...[...evald.value.keys()].map((k) => k.length));
+  const keys = [...evald.value.keys()];
+  const width = keys.length ? Math.max(...keys.map((k) => k.length)) : 0;
   for (const [k, v] of evald.value) {
     if (v.axes.length === 0) {
-      console.log(`${k.padEnd(width)}  ${fmtQty(v.cells[0].qty)}`);
+      const cell = v.cells[0];
+      if (!cell) {
+        console.log(`${k.padEnd(width)}  (empty)`);
+        continue;
+      }
+      console.log(`${k.padEnd(width)}  ${fmtQty(cell.qty)}`);
     } else {
       console.log(k);
+      if (v.cells.length === 0) {
+        console.log("  (no cells)");
+        continue;
+      }
       const tagWidth = Math.max(...v.cells.map((c) => fmtTags(c.at, v.axes).length));
       for (const cell of v.cells) {
         console.log(`  ${fmtTags(cell.at, v.axes).padEnd(tagWidth)}  ${fmtQty(cell.qty)}`);

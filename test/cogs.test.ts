@@ -251,6 +251,91 @@ rate =
   assert.equal(cell(r, "rate", { tier: "bronze" }), 0.10);
 });
 
+run("broadcast errors on missing cell", () => {
+  const src = `
+axis sku = :a :b
+price =
+  :a  $10
+units =
+  :a  100
+  :b  200
+revenue = price * units`;
+  const r = parseProgram(src);
+  assert.ok(r.ok);
+  const e = evalProgram(r.value);
+  assert.equal(e.ok, false);
+});
+
+run("selectCells errors on non-existent axis", () => {
+  const src = `
+axis sku = :a :b
+price =
+  :a  $10
+  :b  $20
+total = sum price over :sku
+bad = total :a`;
+  const r = parseProgram(src);
+  assert.ok(r.ok);
+  const e = evalProgram(r.value);
+  assert.equal(e.ok, false);
+});
+
+run("specificity tie: last branch wins", () => {
+  const src = `
+axis sku = :a :b
+price =
+  :a  $10
+  :a  $99`;
+  const r = evalOk(src);
+  assert.equal(cell(r, "price", { sku: "a" }), 99);
+});
+
+run("min/max are unit-aware", () => {
+  const r = evalOk("axis x = :a :b\nw =\n  :a  1 kg\n  :b  500 g\nm = min w over :x");
+  assert.equal(val(r, "m"), 500);
+});
+
+run("unrecognized line errors", () => {
+  const r = parseProgram("cogs per bar  $0.64");
+  assert.equal(r.ok, false);
+});
+
+run("axis line missing leading colon errors", () => {
+  const r = parseProgram("axis sku = junk text :widget :energy");
+  assert.equal(r.ok, false);
+});
+
+run("branch with axis name as tag errors", () => {
+  const src = `
+axis sku = :a :b
+price =
+  :sku  $10`;
+  const r = parseProgram(src);
+  assert.equal(r.ok, false);
+});
+
+run("unknown ref errors", () => {
+  const r = parseProgram("a = unknown ref");
+  assert.equal(r.ok, false);
+});
+
+run("unknown function errors", () => {
+  const p = parseOk("a = nope(1)");
+  const r = evalProgram(p);
+  assert.equal(r.ok, false);
+});
+
+run("strips comments", () => {
+  const p = parseOk("// just a comment\na = 1 // trailing\nb = 2");
+  assert.equal(p.bindings.length, 2);
+});
+
+run("dim mismatch error", () => {
+  const p = parseOk("a = 1 kg\nb = 1 ml\nc = a + b");
+  const r = evalProgram(p);
+  assert.equal(r.ok, false);
+});
+
 run("formats qty", () => {
   assert.equal(fmtQty({ value: 100, unit: { num: ["usd"], den: ["kg"] } }), "100 usd/kg");
 });
