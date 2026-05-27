@@ -1,0 +1,137 @@
+// Acme Corp - Widget Bars (derived from beetbook.example.yml)
+// One SKU: snack bar, sold as bars, 4-packs, and 48-bar cases.
+
+// --- constants ---
+bar msrp = $2.50
+bars per case = 48
+bars per box = 4
+
+retail weeks per month = 4.33
+
+// --- ingredients (purchase prices) ---
+oats price = $42 / 50 lb
+almond butter price = $215 / 25 lb
+honey price = $120 / 30 lb
+dark chocolate price = $175 / 25 lb
+sea salt price = $30 / 50 lb
+
+// --- recipe (bar-level amounts, with waste applied) ---
+oats waste mult = 1.02
+almond butter waste mult = 1.02
+honey waste mult = 1.02
+dark chocolate waste mult = 1.03
+sea salt waste mult = 1.01
+
+oats per bar = 0.05 lb * oats waste mult
+almond butter per bar = 0.018 lb * almond butter waste mult
+honey per bar = 0.012 lb * honey waste mult
+dark chocolate per bar = 0.015 lb * dark chocolate waste mult
+sea salt per bar = 0.002 lb * sea salt waste mult
+
+oats cost per bar = oats per bar * oats price
+almond butter cost per bar = almond butter per bar * almond butter price
+honey cost per bar = honey per bar * honey price
+dark chocolate cost per bar = dark chocolate per bar * dark chocolate price
+sea salt cost per bar = sea salt per bar * sea salt price
+
+recipe cost per bar = oats cost per bar + almond butter cost per bar + honey cost per bar + dark chocolate cost per bar + sea salt cost per bar
+
+// --- packaging (per-bar cost at chosen volume tier) ---
+wrapper cost per bar = $0.058 @ 30000 unit, $0.048 @ 100000 unit, $0.042 @ 300000 unit
+box4 cost per box = $0.45 @ 25000 unit, $0.34 @ 75000 unit, $0.27 @ 200000 unit
+box4 cost per bar = box4 cost per box / bars per box
+shipper cost per case = $0.95
+shipper cost per bar = shipper cost per case / bars per case
+pallet prep per case = $0.04
+pallet prep per bar = pallet prep per case / bars per case
+inbound freight per case = $0.18
+inbound freight per bar = inbound freight per case / bars per case
+
+packaging cost per bar = wrapper cost per bar + box4 cost per bar + shipper cost per bar + pallet prep per bar + inbound freight per bar
+
+// --- processing (co-pack tolling at chosen volume tier) ---
+processing yield = 0.98
+processing run cost per bar = $0.085 @ 30000 unit, $0.072 @ 100000 unit, $0.061 @ 300000 unit
+processing cost per bar = processing run cost per bar / processing yield
+
+// --- total COGS per bar ---
+cogs per bar = recipe cost per bar + packaging cost per bar + processing cost per bar
+
+// --- payroll (annual, summed monthly via * 1 month) ---
+ceo salary annual = $60000 / year
+coo salary annual = $60000 / year
+head sales salary annual = $85000 / year
+brand manager salary annual = $72000 / year
+ops associate salary annual = $55000 / year
+
+payroll tax rate = 0.12
+payroll fee rate = 0.04
+payroll loaded mult = 1 + payroll tax rate + payroll fee rate
+
+founder benefits = $350 / month
+
+payroll annual base = ceo salary annual + coo salary annual + head sales salary annual + brand manager salary annual + ops associate salary annual
+payroll annual loaded = payroll annual base * payroll loaded mult + founder benefits + founder benefits
+
+payroll monthly = payroll annual loaded * 1 month
+
+// --- operating expenses (monthly $) ---
+rent = $1800
+accounting = $650
+insurance = $480
+software = $525
+edi = $595
+fixed tpl fees = $380
+copack storage = $600
+
+opex monthly = rent + accounting + insurance + software + edi + fixed tpl fees + copack storage
+opex annual = opex monthly * 12
+
+// --- marketing (monthly $, always-on portion) ---
+shopify subs ads = $1200
+klaviyo email = $400
+fakemart shopper = $1500
+pr agency = $2000
+demo cost = $150
+demos per month = 6
+demo program monthly = demo cost * demos per month
+
+marketing monthly = shopify subs ads + klaviyo email + fakemart shopper + pr agency + demo program monthly
+
+// --- channel economics (gross margin per bar at MSRP / wholesale prices) ---
+fakemart price per bar = $1.55
+indie price per bar = $1.65
+amazon price per bar = $2.50
+shopify subs price per bar = $1.69
+
+fakemart distributor margin pct = 0.22
+fakemart spoils pct = 0.01
+fakemart freight pct = 0.015
+fakemart cash discount pct = 0.02
+fakemart take pct = fakemart distributor margin pct + fakemart spoils pct + fakemart freight pct + fakemart cash discount pct
+
+fakemart net per bar = fakemart price per bar * (1 - fakemart take pct)
+fakemart margin per bar = fakemart net per bar - cogs per bar
+
+faire fee pct = 0.15
+indie net per bar = indie price per bar * (1 - faire fee pct)
+indie margin per bar = indie net per bar - cogs per bar
+
+amazon referral pct = 0.15
+amazon fba per bar = $0.40
+amazon storage per bar = $0.005
+amazon net per bar = amazon price per bar * (1 - amazon referral pct) - amazon fba per bar - amazon storage per bar
+amazon margin per bar = amazon net per bar - cogs per bar
+
+shopify merchant fee pct = 0.029
+shopify subs net per bar = shopify subs price per bar * (1 - shopify merchant fee pct)
+shopify subs margin per bar = shopify subs net per bar - cogs per bar
+
+// --- monthly burn summary ---
+monthly fixed burn = payroll monthly + opex monthly + marketing monthly
+
+// --- charts ---
+[oats cost per bar, almond butter cost per bar, honey cost per bar, dark chocolate cost per bar, sea salt cost per bar] as pie
+[recipe cost per bar, packaging cost per bar, processing cost per bar] as bar
+[fakemart margin per bar, indie margin per bar, amazon margin per bar, shopify subs margin per bar] as bar
+[payroll monthly, opex monthly, marketing monthly] as pie
