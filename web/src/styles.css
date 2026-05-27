@@ -406,3 +406,19 @@ html, body, #root {
 }
 
 .cells-table tr:last-child td { border-bottom: none; }
+
+.cells-table .cell-val-input {
+  font: inherit;
+  font-size: 11px;
+  width: 100%;
+  min-width: 0;
+  text-align: right;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+.cells-table .cell-val-input:hover { border-color: var(--border); background: white; }
+.cells-table .cell-val-input:focus { border-color: var(--accent); background: white; outline: none; }

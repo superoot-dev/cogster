@@ -9,6 +9,7 @@ type Props = {
   onRhsChange: (lineIndex: number, rhs: string) => void;
   onNameChange: (oldName: string, newName: string) => void;
   onUnitChange: (lineIndex: number, unit: string) => void;
+  onCellValueChange: (lineIndex: number, assignment: Record<string, string>, value: number, currency: boolean) => void;
   onColorChange: (ref: string, chart: string, color: string) => void;
   onChartChange: (ref: string, chartKey: string, color: string) => void;
   onReorder: (from: number, to: number) => void;
@@ -34,7 +35,7 @@ function groupRows(rows: ScalarRow[]): { section: string | null; rows: ScalarRow
   return groups;
 }
 
-export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, onNameChange, onUnitChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
+export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, onNameChange, onUnitChange, onCellValueChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropOn, setDropOn] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -93,6 +94,7 @@ export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, 
                   onRhsChange={(s) => onRhsChange(row.lineIndex, s)}
                   onNameChange={(s) => onNameChange(row.name, s)}
                   onUnitChange={(s) => onUnitChange(row.lineIndex, s)}
+                  onCellValueChange={(at, v, c) => onCellValueChange(row.lineIndex, at, v, c)}
                   onColorChange={(c) => {
                     const ch = chartForRef(state, row.name);
                     if (ch) onColorChange(row.name, ch.chart, c);
@@ -126,6 +128,7 @@ type RowProps = {
   onRhsChange: (s: string) => void;
   onNameChange: (s: string) => void;
   onUnitChange: (s: string) => void;
+  onCellValueChange: (at: Record<string, string>, value: number, currency: boolean) => void;
   onColorChange: (c: string) => void;
   onChartChange: (key: string) => void;
   onDelete: () => void;
@@ -177,7 +180,43 @@ function formatCellValue(n: number): string {
   return Number(n.toPrecision(6)).toString();
 }
 
-function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEnd, onDragOver, onValueChange, onRhsChange, onNameChange, onUnitChange, onColorChange, onChartChange, onDelete }: RowProps) {
+type CellRowProps = {
+  axes: string[];
+  cell: { at: Record<string, string>; value: number; unit: string; currency: boolean };
+  onValueChange: (at: Record<string, string>, value: number, currency: boolean) => void;
+};
+
+function CellRow({ axes, cell, onValueChange }: CellRowProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const display = draft ?? formatCellValue(cell.value);
+  function commit() {
+    if (draft === null) return;
+    const n = Number(draft);
+    if (Number.isFinite(n) && n !== cell.value) onValueChange(cell.at, n, cell.currency);
+    setDraft(null);
+  }
+  return (
+    <tr>
+      {axes.map((a) => <td key={a}>{cell.at[a]}</td>)}
+      <td className="cells-val">
+        <input
+          className="cell-val-input"
+          type="number"
+          value={display}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") { setDraft(null); (e.target as HTMLInputElement).blur(); }
+          }}
+        />
+      </td>
+      <td className="cells-unit">{cell.unit}</td>
+    </tr>
+  );
+}
+
+function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEnd, onDragOver, onValueChange, onRhsChange, onNameChange, onUnitChange, onCellValueChange, onColorChange, onChartChange, onDelete }: RowProps) {
   const max = Math.max(base * 4, 1);
   const step = max < 10 ? 0.01 : max < 1000 ? 0.5 : max / 1000;
   const [dragArmed, setDragArmed] = useState(false);
@@ -218,16 +257,9 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
             <tr>{row.axes.map((a) => <th key={a}>{a}</th>)}<th className="cells-val">value</th><th className="cells-unit">unit</th></tr>
           </thead>
           <tbody>
-            {row.cells.map((c, i) => {
-              const parts = c.label.split(" / ");
-              return (
-                <tr key={i}>
-                  {parts.map((p, j) => <td key={j}>{p}</td>)}
-                  <td className="cells-val">{formatCellValue(c.value)}</td>
-                  <td className="cells-unit">{c.unit}</td>
-                </tr>
-              );
-            })}
+            {row.cells.map((c, i) => (
+              <CellRow key={i} axes={row.axes} cell={c} onValueChange={onCellValueChange} />
+            ))}
           </tbody>
         </table>
       </div>

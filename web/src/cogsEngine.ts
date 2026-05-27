@@ -14,7 +14,7 @@ export type ScalarRow = {
   rhs: string;
   section: string | null;
   axes: string[];
-  cells: { label: string; value: number; unit: string }[];
+  cells: { at: Record<string, string>; label: string; value: number; unit: string; currency: boolean }[];
 };
 
 export type EngineState = {
@@ -120,9 +120,11 @@ export function buildState(source: string): EngineState {
     }
     const repUnit = v.cells[0]?.qty.unit ?? { num: [], den: [] };
     const cellRows = v.cells.map((c: Cell) => ({
+      at: c.at,
       label: v.axes.map((a) => c.at[a]).join(" / "),
       value: c.qty.value,
       unit: fmtUnit(c.qty.unit),
+      currency: c.qty.unit.num.includes("usd"),
     }));
     rows.push({
       name: b.name,
@@ -146,6 +148,103 @@ export function buildState(source: string): EngineState {
     charts: charts.ok ? charts.value : [],
     error: null,
   };
+}
+
+type BranchParts = { indent: string; rawTags: string[]; value: string; valueStart: number };
+
+function parseBranchLine(line: string): BranchParts | null {
+  const indent = (line.match(/^\s*/) ?? [""])[0];
+  const trimmed = line.slice(indent.length);
+  if (!trimmed.startsWith(":")) return null;
+  let pos = 0;
+  const rawTags: string[] = [];
+  while (pos < trimmed.length && trimmed[pos] === ":") {
+    let end = pos + 1;
+    while (end < trimmed.length && !/\s/.test(trimmed[end])) end += 1;
+    rawTags.push(trimmed.slice(pos + 1, end));
+    pos = end;
+    while (pos < trimmed.length && /\s/.test(trimmed[pos])) pos += 1;
+  }
+  const value = trimmed.slice(pos).trim();
+  return { indent, rawTags, value, valueStart: indent.length + pos };
+}
+
+function bindingBlockRange(lines: string[], startLine: number): { firstBranch: number; lastBranch: number } {
+  let firstBranch = -1;
+  let lastBranch = startLine;
+  for (let i = startLine + 1; i < lines.length; i += 1) {
+    const t = lines[i].trim();
+    if (!t) continue;
+    if (t.startsWith(":") || t.startsWith("|")) {
+      if (firstBranch < 0) firstBranch = i;
+      lastBranch = i;
+      continue;
+    }
+    break;
+  }
+  return { firstBranch, lastBranch };
+}
+
+function formatCellNumber(n: number): string {
+  if (Number.isInteger(n)) return n.toString();
+  return (Math.round(n * 10000) / 10000).toString();
+}
+
+export function setCellValue(
+  source: string,
+  program: Program,
+  bindingLine: number,
+  assignment: Record<string, string>,
+  newValue: number,
+  currency: boolean,
+): string {
+  const tagToAxis = new Map<string, string>();
+  const groupNames = new Set<string>();
+  for (const ax of program.axes) {
+    for (const v of ax.values) tagToAxis.set(v, ax.name);
+    for (const g of ax.groups) groupNames.add(g.name);
+  }
+  const lines = source.split("\n");
+  const { lastBranch } = bindingBlockRange(lines, bindingLine);
+  const axesNeeded = Object.keys(assignment);
+
+  function tagsMatchExactly(rawTags: string[]): boolean {
+    if (rawTags.length !== axesNeeded.length) return false;
+    const seen = new Map<string, string>();
+    for (const t of rawTags) {
+      if (t === "*") return false;
+      if (groupNames.has(t)) return false;
+      const ax = tagToAxis.get(t);
+      if (!ax) return false;
+      if (seen.has(ax)) return false;
+      seen.set(ax, t);
+    }
+    if (seen.size !== axesNeeded.length) return false;
+    for (const ax of axesNeeded) {
+      if (seen.get(ax) !== assignment[ax]) return false;
+    }
+    return true;
+  }
+
+  for (let i = bindingLine + 1; i <= lastBranch && i < lines.length; i += 1) {
+    const parts = parseBranchLine(lines[i]);
+    if (!parts) continue;
+    if (!tagsMatchExactly(parts.rawTags)) continue;
+    const useCurrency = parts.value.trim().startsWith("$") || currency;
+    const formatted = `${useCurrency ? "$" : ""}${formatCellNumber(newValue)}`;
+    lines[i] = `${lines[i].slice(0, parts.valueStart)}${formatted}`;
+    return lines.join("\n");
+  }
+
+  const sortedAxes = program.axes
+    .filter((a) => assignment[a.name] !== undefined)
+    .map((a) => a.name);
+  const orderedTags = sortedAxes.map((a) => `:${assignment[a]}`).join(" ");
+  const formatted = `${currency ? "$" : ""}${formatCellNumber(newValue)}`;
+  const indent = "  ";
+  const newLine = `${indent}${orderedTags}  ${formatted}`;
+  lines.splice(lastBranch + 1, 0, newLine);
+  return lines.join("\n");
 }
 
 export function setRhs(source: string, lineIndex: number, newRhs: string): string {
