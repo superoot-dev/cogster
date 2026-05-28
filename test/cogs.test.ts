@@ -124,6 +124,33 @@ run("tier volume of mismatched dimension does not drive ladder", () => {
   assert.equal(val(r, "price"), 100);
 });
 
+run("axed tier volume drives each branch by its own context", () => {
+  const src = [
+    "axis sku = :a :b",
+    "tier volume = 0",
+    "  :a  300 unit",
+    "  :b  100 unit",
+    "price =",
+    "  :a  $10 @ 100 unit, $8 @ 200 unit, $6 @ 300 unit",
+    "  :b  $10 @ 100 unit, $8 @ 200 unit, $6 @ 300 unit",
+  ].join("\n");
+  const r = evalOk(src);
+  assert.equal(cell(r, "price", { sku: "a" }), 6);
+  assert.equal(cell(r, "price", { sku: "b" }), 10);
+});
+
+run("out-of-branch ladder sums an axed driver to total", () => {
+  const src = [
+    "axis sku = :a :b",
+    "tier volume = 0",
+    "  :a  300 unit",
+    "  :b  100 unit",
+    "film = $10 @ 100 unit, $8 @ 200 unit, $6 @ 400 unit",
+  ].join("\n");
+  const r = evalOk(src);
+  assert.equal(val(r, "film"), 6);
+});
+
 run("detects cycles", () => {
   const p = parseOk("a = b\nb = a");
   const r = evalProgram(p);
