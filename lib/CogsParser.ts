@@ -472,7 +472,7 @@ function parseBranchTags(src: string, ctx: Ctx): Result<{ tags: TagSet; rest: st
 
 type RawAxis = { name: string; values: string[]; groups: AxisGroup[] };
 type RawBinding = { name: string; rhs: string; branches: string[] };
-type RawChart = { color: string; chart: string; ref: string };
+type RawChart = { color: string; chart: string; ref: string; group: string };
 type RawChartConfig = { name: string; kind: ChartKind };
 const CHART_CONFIG_LINE = /^chart\s+([A-Za-z_][A-Za-z0-9_-]*)\s*(?:=\s*(bar|pie)\s*)?$/;
 
@@ -491,24 +491,27 @@ function parseChartLine(line: string): Result<RawChart, string> {
   if (!color) return err(`unknown color '#${m[1]}'`);
   const ref = collapseSpaces(m[3]);
   if (!ref) return err(`chart line missing binding reference`);
-  return ok({ color, chart: m[2], ref });
+  return ok({ color, chart: m[2], ref, group: "" });
 }
 
-const CHART_BLOCK_ENTRY = /^(?:#([A-Za-z0-9]+)\s+)?(.+?)\s*$/;
+// Optional group label precedes the color: `[group ]#color ref`. Same group
+// stacks into one bar (bar charts only); color is the anchor that splits group
+// from ref, so a plain `#color ref` or bare `ref` line stays ungrouped.
+const CHART_BLOCK_COLORED = /^(?:(.*?)\s+)?#([A-Za-z0-9]+)\s+(.+?)$/;
 
 function parseChartBlockEntry(line: string, chart: string): Result<RawChart, string> {
-  const m = line.trim().match(CHART_BLOCK_ENTRY);
-  if (!m) return err(`bad chart block entry: '${line}'`);
-  const colorRaw = m[1];
-  const ref = collapseSpaces(m[2]);
-  if (!ref) return err(`chart block entry missing binding reference`);
-  let color = "#auto";
-  if (colorRaw) {
-    const resolved = resolveColor(colorRaw);
-    if (!resolved) return err(`unknown color '#${colorRaw}'`);
-    color = resolved;
+  const t = line.trim();
+  const cm = t.match(CHART_BLOCK_COLORED);
+  if (cm) {
+    const color = resolveColor(cm[2]);
+    if (!color) return err(`unknown color '#${cm[2]}'`);
+    const ref = collapseSpaces(cm[3]);
+    if (!ref) return err(`chart block entry missing binding reference`);
+    return ok({ color, chart, ref, group: collapseSpaces(cm[1] ?? "") });
   }
-  return ok({ color, chart, ref });
+  const ref = collapseSpaces(t);
+  if (!ref) return err(`chart block entry missing binding reference`);
+  return ok({ color: "#auto", chart, ref, group: "" });
 }
 
 function isBranchLine(line: string): boolean {
@@ -793,7 +796,7 @@ export function parseProgram(src: string): Result<Program, string> {
   const charts: ChartEntry[] = [];
   for (const ch of scan.value.charts) {
     if (!ctx.names.has(ch.ref)) return err(`chart entry references unknown binding '${ch.ref}'`);
-    charts.push({ color: ch.color, chart: ch.chart, ref: ch.ref });
+    charts.push({ color: ch.color, chart: ch.chart, ref: ch.ref, group: ch.group });
   }
   const chartConfigs: ChartConfig[] = scan.value.chartConfigs.map((c) => ({ name: c.name, kind: c.kind }));
   return ok({ axes, bindings, charts, chartConfigs });

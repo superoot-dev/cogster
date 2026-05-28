@@ -91,6 +91,7 @@ export const ChartEntrySchema = z.object({
   color: z.string(),
   chart: z.string(),
   ref: z.string(),
+  group: z.string().default(""),
 });
 export type ChartEntry = z.infer<typeof ChartEntrySchema>;
 

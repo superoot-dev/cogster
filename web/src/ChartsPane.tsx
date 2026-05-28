@@ -26,10 +26,21 @@ function formatValue(n: number): string {
 function ChartCard({ chart }: { chart: RenderedChart }) {
   const unit = chart.series[0]?.unit ?? "";
   const data = chart.series.map((s) => ({ name: s.label, value: s.value, color: s.color, unit: s.unit }));
+  // Bar charts stack series sharing a `group` into one bar; ungrouped series
+  // each form their own (singleton) group. One row per group, one Bar per
+  // series (its value lives only in its group's row), all sharing a stackId.
+  const groups: string[] = [];
+  for (const s of chart.series) if (!groups.includes(s.group)) groups.push(s.group);
+  const stackRows = groups.map((g) => {
+    const row: Record<string, number | string> = { name: g, unit };
+    chart.series.forEach((s, i) => { if (s.group === g) row[`v${i}`] = s.value; });
+    return row;
+  });
+  const grouped = groups.length < chart.series.length;
   return (
     <div className="chart-card">
       <h3>{chart.chart} {unit && <span style={{ color: "var(--muted)", fontWeight: 400 }}>({unit})</span>}</h3>
-      <ResponsiveContainer width="100%" height={chart.kind === "pie" ? 200 : Math.max(120, 24 + 28 * chart.series.length)}>
+      <ResponsiveContainer width="100%" height={chart.kind === "pie" ? 200 : Math.max(120, 24 + 28 * groups.length)}>
         {chart.kind === "pie" ? (
           <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
             <Pie data={data} dataKey="value" nameKey="name" outerRadius={80} isAnimationActive={false}>
@@ -38,13 +49,14 @@ function ChartCard({ chart }: { chart: RenderedChart }) {
             <Tooltip formatter={(v, _n, p) => [`${formatValue(Number(v))} ${(p as { payload: { unit: string } }).payload.unit}`, (p as { payload: { name: string } }).payload.name]} />
           </PieChart>
         ) : (
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+          <BarChart data={stackRows} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
             <XAxis type="number" hide />
             <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v, _n, p) => [`${formatValue(Number(v))} ${(p as { payload: { unit: string } }).payload.unit}`, (p as { payload: { name: string } }).payload.name]} />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
-              {data.map((d, i) => <Cell key={i} fill={d.color} />)}
-            </Bar>
+            <Tooltip formatter={(v, n) => [`${formatValue(Number(v))} ${unit}`, n]} />
+            {chart.series.map((s, i) => (
+              <Bar key={i} dataKey={`v${i}`} name={s.label} stackId="a" fill={s.color}
+                radius={grouped ? undefined : [0, 4, 4, 0]} isAnimationActive={false} />
+            ))}
           </BarChart>
         )}
       </ResponsiveContainer>

@@ -605,6 +605,49 @@ units sold =
   assert.notEqual(foo.series[0].color, foo.series[1].color);
 });
 
+run("chart block: group label stacks series; default group is the ref", () => {
+  const src = `
+a = $1
+b = $2
+c = $3
+chart stk = bar
+  cogs   #1e3a8a  a
+  cogs   #3b82f6  b
+  trade  #ef4444  c
+`;
+  const prog = parseOk(src);
+  const evald = evalProgram(prog);
+  assert.equal(evald.ok, true);
+  if (!evald.ok) return;
+  const r = renderCharts(prog, evald.value);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const stk = r.value.find((c) => c.chart === "stk")!;
+  assert.equal(stk.series.length, 3);
+  assert.equal(stk.series[0].group, "cogs");
+  assert.equal(stk.series[1].group, "cogs");
+  assert.equal(stk.series[2].group, "trade");
+  assert.equal(stk.series[0].color, "#1e3a8a");
+});
+
+run("chart block: ungrouped entries default group to their own ref", () => {
+  const src = `
+a = $1
+b = $2
+chart plain = bar
+  #blue  a
+  #green b
+`;
+  const prog = parseOk(src);
+  const evald = evalProgram(prog);
+  if (!evald.ok) return;
+  const r = renderCharts(prog, evald.value);
+  if (!r.ok) return;
+  const plain = r.value.find((c) => c.chart === "plain")!;
+  assert.equal(plain.series[0].group, "a");
+  assert.equal(plain.series[1].group, "b");
+});
+
 run("chart block form: indented entries with optional color", () => {
   const src = `
 a = 10
