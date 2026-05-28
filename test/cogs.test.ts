@@ -104,6 +104,26 @@ run("tiers default to lowest", () => {
   assert.equal(val(r, "price"), 100);
 });
 
+run("tier volume selects matching tier", () => {
+  const r = evalOk("tier volume = 25 kg\nprice = $100 / kg @ 10 kg, $80 / kg @ 20 kg, $60 / kg @ 30 kg");
+  assert.equal(val(r, "price"), 80);
+});
+
+run("tier volume below smallest threshold uses lowest tier", () => {
+  const r = evalOk("tier volume = 5 kg\nprice = $100 / kg @ 10 kg, $80 / kg @ 20 kg");
+  assert.equal(val(r, "price"), 100);
+});
+
+run("tier volume above largest threshold uses highest tier", () => {
+  const r = evalOk("tier volume = 999 kg\nprice = $100 / kg @ 10 kg, $80 / kg @ 20 kg, $60 / kg @ 30 kg");
+  assert.equal(val(r, "price"), 60);
+});
+
+run("tier volume of mismatched dimension does not drive ladder", () => {
+  const r = evalOk("tier volume = 25 kg\nprice = $100 @ 10 unit, $80 @ 20 unit");
+  assert.equal(val(r, "price"), 100);
+});
+
 run("detects cycles", () => {
   const p = parseOk("a = b\nb = a");
   const r = evalProgram(p);

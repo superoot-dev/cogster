@@ -15,10 +15,12 @@ import {
   scalarQty,
   scalarValue,
 } from "./CogsTypes";
-import { addQty, divQty, fmtUnit, mulQty, negQty, subQty } from "./CogsUnits";
+import { addQty, divQty, dimsEqual, fmtUnit, mulQty, negQty, subQty, unitDims } from "./CogsUnits";
 import { STDLIB, buildEvalFunctions, ExprEvalFunc } from "./ScriptEvaluator";
 
 const FNS: Record<string, ExprEvalFunc> = { ...buildEvalFunctions(), ...STDLIB };
+
+const TIER_VOLUME = "tier volume";
 
 export type Env = {
   bindings: Map<string, Binding>;
@@ -202,6 +204,33 @@ function aggregate(v: CogValue, op: AggOp, axes: string[]): Result<CogValue, str
   return ok({ axes: remain, cells: out });
 }
 
+function tierMagnitude(q: Qty): number {
+  return q.value * unitDims(q.unit).factor;
+}
+
+// Selects which price tier is operative. With no `tier volume` binding, falls
+// back to the lowest tier (parser sorts tiers ascending by `at`), preserving
+// pre-volume-tier behavior. When `tier volume` is defined and dimension-matches
+// a ladder's `at` thresholds, picks the highest tier whose threshold <= volume.
+function pickTier(
+  tiers: { at: Qty; expr: Expr }[],
+  env: Env,
+): Result<{ at: Qty; expr: Expr }, string> {
+  if (!env.bindings.has(TIER_VOLUME) || env.stack.has(TIER_VOLUME)) return ok(tiers[0]);
+  const vr = evalExpr({ kind: "ref", name: TIER_VOLUME }, env);
+  if (!vr.ok) return vr;
+  const vol = scalarQty(vr.value);
+  if (vol === null) return err(`'${TIER_VOLUME}' must be a scalar`);
+  if (!dimsEqual(unitDims(vol.unit).dims, unitDims(tiers[0].at.unit).dims)) return ok(tiers[0]);
+  const volMag = tierMagnitude(vol);
+  let chosen = tiers[0];
+  for (const t of tiers) {
+    if (tierMagnitude(t.at) > volMag) break;
+    chosen = t;
+  }
+  return ok(chosen);
+}
+
 export function evalExpr(expr: Expr, env: Env): Result<CogValue, string> {
   if (expr.kind === "qty") return ok(scalarValue(expr.qty));
   if (expr.kind === "ref") {
@@ -247,7 +276,9 @@ export function evalExpr(expr: Expr, env: Env): Result<CogValue, string> {
   }
   if (expr.kind === "tiers") {
     if (expr.tiers.length === 0) return err("empty tier expression");
-    return evalExpr(expr.tiers[0].expr, env);
+    const pick = pickTier(expr.tiers, env);
+    if (!pick.ok) return pick;
+    return evalExpr(pick.value.expr, env);
   }
   if (expr.kind === "branches") return expandBranches(expr.cases, env);
   if (expr.kind === "select") {
