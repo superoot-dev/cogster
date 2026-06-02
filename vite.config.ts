@@ -29,7 +29,7 @@ export default defineConfig({
           try {
             if (req.method === "GET") {
               const text = await readFile(SOURCE_FILE, "utf8");
-              res.end(JSON.stringify({ source: text, path: SOURCE_FILE }));
+              res.end(JSON.stringify({ source: text, path: SOURCE_FILE, scenario: process.env.COGSTER_SCENARIO ?? null }));
               return;
             }
             if (req.method === "POST") {

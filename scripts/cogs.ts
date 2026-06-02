@@ -13,26 +13,32 @@ const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const argv = yargs(hideBin(process.argv))
   .scriptName("cogs")
   .command("eval <file>", "evaluate a .cogs file", (y) =>
-    y.positional("file", { type: "string", demandOption: true }).option("json", { type: "boolean", default: false }),
+    y
+      .positional("file", { type: "string", demandOption: true })
+      .option("json", { type: "boolean", default: false })
+      .option("scenario", { type: "string", description: "apply a scenario override block (e.g. macgray)" }),
   )
   .command("parse <file>", "print parsed AST", (y) =>
     y.positional("file", { type: "string", demandOption: true }),
   )
   .command("serve <file>", "launch web UI for a .cogs file", (y) =>
-    y.positional("file", { type: "string", demandOption: true }),
+    y
+      .positional("file", { type: "string", demandOption: true })
+      .option("scenario", { type: "string", description: "initial scenario selection" }),
   )
   .demandCommand(1)
   .strict()
   .help()
   .parseSync();
 
+const scenarioArg = (argv as Record<string, unknown>).scenario as string | undefined;
 const cmdName = (argv as { _: string[] })._[0];
 if (cmdName === "serve") {
   const file = resolve(process.cwd(), String((argv as Record<string, unknown>).file));
   const vite = resolve(PKG_ROOT, "node_modules/.bin/vite");
   const child = spawn(vite, [PKG_ROOT, "--config", resolve(PKG_ROOT, "vite.config.ts")], {
     stdio: "inherit",
-    env: { ...process.env, COGSTER_FILE: file },
+    env: { ...process.env, COGSTER_FILE: file, ...(scenarioArg ? { COGSTER_SCENARIO: scenarioArg } : {}) },
   });
   child.on("exit", (code) => process.exit(code ?? 0));
 } else {
@@ -51,7 +57,7 @@ if (cmd === "parse") {
   process.exit(0);
 }
 
-const evald = evalProgram(parsed.value);
+const evald = evalProgram(parsed.value, scenarioArg);
 if (!evald.ok) {
   console.error(`eval error: ${evald.error}`);
   process.exit(1);

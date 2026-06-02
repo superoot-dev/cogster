@@ -104,11 +104,18 @@ export const ChartConfigSchema = z.object({
 });
 export type ChartConfig = z.infer<typeof ChartConfigSchema>;
 
+export const ScenarioSchema = z.object({
+  name: z.string(),
+  bindings: z.array(BindingSchema),
+});
+export type Scenario = z.infer<typeof ScenarioSchema>;
+
 export const ProgramSchema = z.object({
   axes: z.array(AxisSchema),
   bindings: z.array(BindingSchema),
   charts: z.array(ChartEntrySchema),
   chartConfigs: z.array(ChartConfigSchema),
+  scenarios: z.array(ScenarioSchema).default([]),
 });
 export type Program = z.infer<typeof ProgramSchema>;
 

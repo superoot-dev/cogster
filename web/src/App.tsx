@@ -3,9 +3,10 @@ import { appendBinding, buildState, deleteLine, moveLine, nextNewName, renameBin
 import { BindingsPane } from "./BindingsPane";
 import { ChartsPane } from "./ChartsPane";
 
-export function App({ initialSource }: { initialSource: string }) {
+export function App({ initialSource, initialScenario = null }: { initialSource: string; initialScenario?: string | null }) {
   const [source, setSource] = useState(initialSource);
-  const state = useMemo(() => buildState(source), [source]);
+  const [scenario, setScenario] = useState<string | null>(initialScenario);
+  const state = useMemo(() => buildState(source, scenario), [source, scenario]);
   const [bases, setBases] = useState<Record<string, number>>({});
   useEffect(() => {
     setBases((prev) => {
@@ -64,6 +65,9 @@ export function App({ initialSource }: { initialSource: string }) {
         state={state}
         error={state.error}
         bases={bases}
+        scenarios={state.program.scenarios.map((s) => s.name)}
+        scenario={scenario}
+        onScenario={setScenario}
         onValueChange={handleValueChange}
         onRhsChange={handleRhsChange}
         onNameChange={handleNameChange}

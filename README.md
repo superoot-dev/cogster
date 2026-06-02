@@ -124,6 +124,31 @@ chart totals
 - Chart keys are single tokens; refs are full multi-word binding names
 - Default kind: bar. Override with `chart <name> = pie`
 
+### Scenarios (override blocks)
+
+A scenario directive redefines existing bindings under a named scenario, so an alternate set of assumptions can sit *next to* the defaults in the source. The base model is unaffected until a scenario is selected (web dropdown, or CLI `--scenario <name>`).
+
+```cogs
+cases per pallet = 80
+#macgray { cases per pallet = 128 }            // one-line form
+
+stick film cost per unit = $0.079 @ 80000 unit, $0.072 @ 160000 unit
+#macgray {                                     // block form, braces may span lines
+  stick film cost per unit = $0.069 @ 80000 unit, $0.059 @ 160000 unit
+}
+```
+
+- `#name { ... }` block (anywhere, any number) or one-line `#name <binding>`; all blocks of the same name merge.
+- A scenario may only **override bindings that already exist** in the base — it cannot introduce new names, axes, or charts. This keeps the base model standalone-evaluable.
+- Overrides are full binding definitions (scalars, tiered ladders, branches) and flow into everything downstream.
+- Disambiguated from chart lines by the absence of a `.` after the name (`#blue.chart ref` is a chart; `#blue { ... }` / `#blue x = 1` is a scenario).
+
+```bash
+cogs eval model.cogs                 # base
+cogs eval model.cogs --scenario macgray
+cogs serve model.cogs --scenario macgray   # dropdown defaults to this
+```
+
 ### Section headers (UI grouping)
 
 The web UI scans the source for `// --- name ---` style comments and groups subsequent bindings under collapsible section headers with row counts.
@@ -142,8 +167,9 @@ oats per bar = 0.05 lb
 Every parsed binding lowers to one shape:
 
 ```
-Program       = { axes, bindings, charts, chartConfigs }
+Program       = { axes, bindings, charts, chartConfigs, scenarios }
 Binding       = { name, expr }
+Scenario      = { name, bindings }   // override bindings applied when active
 Expr          = Qty | Ref | Op(+|-|*|/) | Neg | Call | Tiers
               | Branches | Select | Aggregate
 Qty           = { value: number, unit: { num: string[], den: string[] } }

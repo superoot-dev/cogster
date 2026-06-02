@@ -78,13 +78,14 @@ function fallbackRows(source: string): ScalarRow[] {
   return rows;
 }
 
-export function buildState(source: string): EngineState {
+export function buildState(source: string, scenario?: string | null): EngineState {
   const parsed = parseProgram(source);
   if (!parsed.ok) {
-    return { source, program: { axes: [], bindings: [], charts: [], chartConfigs: [] }, values: new Map(), rows: fallbackRows(source), charts: [], error: parsed.error };
+    return { source, program: { axes: [], bindings: [], charts: [], chartConfigs: [], scenarios: [] }, values: new Map(), rows: fallbackRows(source), charts: [], error: parsed.error };
   }
   const program = parsed.value;
-  const evald = evalProgram(program);
+  const active = scenario && program.scenarios.some((s) => s.name === scenario) ? scenario : null;
+  const evald = evalProgram(program, active);
   if (!evald.ok) {
     return { source, program, values: new Map(), rows: fallbackRows(source), charts: [], error: evald.error };
   }

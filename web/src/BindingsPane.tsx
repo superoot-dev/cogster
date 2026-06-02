@@ -5,6 +5,9 @@ type Props = {
   state: EngineState;
   error: string | null;
   bases: Record<string, number>;
+  scenarios: string[];
+  scenario: string | null;
+  onScenario: (scenario: string | null) => void;
   onValueChange: (lineIndex: number, value: number) => void;
   onRhsChange: (lineIndex: number, rhs: string) => void;
   onNameChange: (oldName: string, newName: string) => void;
@@ -35,7 +38,7 @@ function groupRows(rows: ScalarRow[]): { section: string | null; rows: ScalarRow
   return groups;
 }
 
-export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, onNameChange, onUnitChange, onCellValueChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
+export function BindingsPane({ state, error, bases, scenarios, scenario, onScenario, onValueChange, onRhsChange, onNameChange, onUnitChange, onCellValueChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropOn, setDropOn] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -48,6 +51,19 @@ export function BindingsPane({ state, error, bases, onValueChange, onRhsChange, 
           <span className="brand-name">cogster</span>
         </div>
         <div className="toolbar">
+          {scenarios.length > 0 && (
+            <select
+              className="btn"
+              value={scenario ?? ""}
+              onChange={(e) => onScenario(e.target.value || null)}
+              title="Scenario override"
+            >
+              <option value="">base</option>
+              {scenarios.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
           <button className="btn" onClick={onAdd}>+ Add row</button>
           <button className="btn" onClick={onDownload}>Download</button>
         </div>

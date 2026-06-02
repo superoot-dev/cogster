@@ -927,4 +927,87 @@ price =
   assert.equal(cell(r, "price", { sku: "b", channel: "y" }), 0);
 });
 
+function evalScenarioOk(src: string, scenario: string): Map<string, CogValue> {
+  const p = parseOk(src);
+  const r = evalProgram(p, scenario);
+  assert.equal(r.ok, true, !r.ok ? r.error : "");
+  return r.ok ? r.value : null!;
+}
+
+run("scenario block overrides a scalar binding", () => {
+  const src = `cases per pallet = 80\n#macgray { cases per pallet = 128 }`;
+  const p = parseOk(src);
+  assert.equal(p.scenarios.length, 1);
+  assert.equal(p.scenarios[0].name, "macgray");
+  assert.equal(val(evalOk(src), "cases per pallet"), 80);
+  assert.equal(val(evalScenarioOk(src, "macgray"), "cases per pallet"), 128);
+});
+
+run("scenario one-line form overrides", () => {
+  const src = `cases per pallet = 80\n#macgray cases per pallet = 128`;
+  assert.equal(val(evalScenarioOk(src, "macgray"), "cases per pallet"), 128);
+});
+
+run("scenario override flows into dependent computed bindings", () => {
+  const src = [
+    "units per case = 96",
+    "cases per pallet = 80",
+    "units per pallet = cases per pallet * units per case",
+    "#macgray { cases per pallet = 128 }",
+  ].join("\n");
+  assert.equal(val(evalOk(src), "units per pallet"), 80 * 96);
+  assert.equal(val(evalScenarioOk(src, "macgray"), "units per pallet"), 128 * 96);
+});
+
+run("multiple blocks with the same name merge", () => {
+  const src = [
+    "a = 1",
+    "b = 2",
+    "#macgray { a = 10 }",
+    "#macgray { b = 20 }",
+  ].join("\n");
+  const r = evalScenarioOk(src, "macgray");
+  assert.equal(val(r, "a"), 10);
+  assert.equal(val(r, "b"), 20);
+});
+
+run("scenario can override a tiered ladder", () => {
+  const src = [
+    "tier volume = 115200 unit",
+    "film = $0.079 @ 80000 unit, $0.072 @ 160000 unit",
+    "#macgray { film = $0.059 @ 80000 unit, $0.048 @ 160000 unit }",
+  ].join("\n");
+  assert.ok(approx(val(evalOk(src), "film"), 0.079));
+  assert.ok(approx(val(evalScenarioOk(src, "macgray"), "film"), 0.059));
+});
+
+run("scenario overriding an unknown binding is a parse error", () => {
+  const r = parseProgram(`a = 1\n#macgray { nonexistent = 2 }`);
+  assert.equal(r.ok, false);
+});
+
+run("evaluating an unknown scenario errors", () => {
+  const p = parseOk(`a = 1\n#macgray { a = 2 }`);
+  const r = evalProgram(p, "nope");
+  assert.equal(r.ok, false);
+});
+
+run("scenario block may not contain axes or charts", () => {
+  const r = parseProgram(`a = 1\n#macgray { axis sku = :x :y }`);
+  assert.equal(r.ok, false);
+});
+
+run("chart lines still parse alongside scenarios", () => {
+  const src = [
+    "a = 1",
+    "#macgray { a = 2 }",
+    "chart c = bar",
+    "#blue.c a",
+  ].join("\n");
+  const p = parseOk(src);
+  assert.equal(p.scenarios.length, 1);
+  assert.equal(p.charts.length, 1);
+  assert.equal(p.charts[0].chart, "c");
+});
+
 console.log("all tests passed");

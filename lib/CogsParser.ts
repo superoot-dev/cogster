@@ -1,5 +1,5 @@
 import { Result, err, ok } from "./CoreTypings";
-import { AggOp, Axis, AxisGroup, BranchCase, Binding, ChartConfig, ChartEntry, ChartKind, Expr, Program, Qty, TagSet, Unit } from "./CogsTypes";
+import { AggOp, Axis, AxisGroup, BranchCase, Binding, ChartConfig, ChartEntry, ChartKind, Expr, Program, Qty, Scenario, TagSet, Unit } from "./CogsTypes";
 import { parseUnit } from "./CogsUnits";
 import { resolveColor } from "./CogsColors";
 
@@ -472,6 +472,7 @@ function parseBranchTags(src: string, ctx: Ctx): Result<{ tags: TagSet; rest: st
 
 type RawAxis = { name: string; values: string[]; groups: AxisGroup[] };
 type RawBinding = { name: string; rhs: string; branches: string[] };
+type RawScenario = { name: string; bindings: RawBinding[] };
 type RawChart = { color: string; chart: string; ref: string; group: string };
 type RawChartConfig = { name: string; kind: ChartKind };
 const CHART_CONFIG_LINE = /^chart\s+([A-Za-z_][A-Za-z0-9_-]*)\s*(?:=\s*(bar|pie)\s*)?$/;
@@ -559,7 +560,50 @@ function parseAxisLine(line: string): Result<RawAxis, string> {
   return ok({ name, values: parts, groups: [] });
 }
 
-type ScanResult = { axes: RawAxis[]; bindings: RawBinding[]; charts: RawChart[]; chartConfigs: RawChartConfig[] };
+type ScanResult = { axes: RawAxis[]; bindings: RawBinding[]; charts: RawChart[]; chartConfigs: RawChartConfig[]; scenarios: RawScenario[] };
+
+// Scenario override directive. Block form `#name { ... }` (braces may span
+// lines) or one-line form `#name <binding> = <expr>`. Disambiguated from chart
+// lines (`#color.chart ref`) by the lack of a `.` after the name.
+const SCENARIO_NAME = /^#([A-Za-z_][A-Za-z0-9_-]*)$/;
+const SCENARIO_ONELINE = /^#([A-Za-z_][A-Za-z0-9_-]*)\s+(\S.*)$/;
+
+type ScenarioScan = { name: string; inner: string; next: number };
+
+// Returns ok(null) when the `#` line at `startIdx` is not a scenario directive
+// (so the caller falls back to chart parsing); ok(scan) when it is; err on a
+// malformed/unterminated block.
+function scanScenario(lines: string[], startIdx: number): Result<ScenarioScan | null, string> {
+  const first = lines[startIdx];
+  const brace = first.indexOf("{");
+  if (brace >= 0) {
+    const header = first.slice(0, brace).trim();
+    const nm = header.match(SCENARIO_NAME);
+    if (!nm) return ok(null);
+    let depth = 0;
+    let inner = "";
+    for (let idx = startIdx; idx < lines.length; idx += 1) {
+      const line = lines[idx];
+      const from = idx === startIdx ? brace : 0;
+      for (let j = from; j < line.length; j += 1) {
+        const ch = line[j];
+        if (ch === "{") {
+          depth += 1;
+          if (depth === 1) continue;
+        } else if (ch === "}") {
+          depth -= 1;
+          if (depth === 0) return ok({ name: nm[1], inner, next: idx + 1 });
+        }
+        inner += ch;
+      }
+      inner += "\n";
+    }
+    return err(`unterminated scenario block '#${nm[1]}' (missing '}')`);
+  }
+  const mo = first.trim().match(SCENARIO_ONELINE);
+  if (mo && mo[2].includes("=")) return ok({ name: mo[1], inner: mo[2], next: startIdx + 1 });
+  return ok(null);
+}
 
 const CONTINUATION_TAIL = /[+\-*/(,]$/;
 
@@ -619,6 +663,7 @@ function scanLines(src: string): Result<ScanResult, string> {
   const bindings: RawBinding[] = [];
   const charts: RawChart[] = [];
   const chartConfigs: RawChartConfig[] = [];
+  const scenarios: RawScenario[] = [];
   let i = 0;
   while (i < lines.length) {
     const trimmed = lines[i].trim();
@@ -627,6 +672,19 @@ function scanLines(src: string): Result<ScanResult, string> {
       continue;
     }
     if (trimmed.startsWith("#")) {
+      const sc = scanScenario(lines, i);
+      if (!sc.ok) return sc;
+      if (sc.value) {
+        const innerScan = scanLines(sc.value.inner);
+        if (!innerScan.ok) return err(`in scenario '#${sc.value.name}': ${innerScan.error}`);
+        const inner = innerScan.value;
+        if (inner.axes.length || inner.charts.length || inner.chartConfigs.length || inner.scenarios.length) {
+          return err(`scenario '#${sc.value.name}' may only contain bindings`);
+        }
+        scenarios.push({ name: sc.value.name, bindings: inner.bindings });
+        i = sc.value.next;
+        continue;
+      }
       const ch = parseChartLine(trimmed);
       if (!ch.ok) return ch;
       charts.push(ch.value);
@@ -722,7 +780,7 @@ function scanLines(src: string): Result<ScanResult, string> {
     }
     bindings.push({ name, rhs, branches });
   }
-  return ok({ axes, bindings, charts, chartConfigs });
+  return ok({ axes, bindings, charts, chartConfigs, scenarios });
 }
 
 function buildCtx(scan: ScanResult): Result<Ctx, string> {
@@ -760,6 +818,31 @@ function buildCtx(scan: ScanResult): Result<Ctx, string> {
   return ok({ names, axes, tagToAxis, groupToAxis, groupMembers });
 }
 
+function parseRawBinding(b: RawBinding, ctx: Ctx): Result<Binding, string> {
+  if (b.branches.length === 0) {
+    const expr = parseExprFrom(b.rhs, ctx);
+    if (!expr.ok) return err(`in binding '${b.name}': ${expr.error}`);
+    return ok({ name: b.name, expr: expr.value });
+  }
+  const cases: BranchCase[] = [];
+  if (b.rhs) {
+    const expr = parseExprFrom(b.rhs, ctx);
+    if (!expr.ok) return err(`in binding '${b.name}': ${expr.error}`);
+    cases.push({ tags: {}, expr: expr.value });
+  }
+  for (const br of b.branches) {
+    const tagP = parseBranchTags(br, ctx);
+    if (!tagP.ok) return err(`in branch of '${b.name}': ${tagP.error}`);
+    if (!tagP.value.rest.trim()) {
+      return err(`in branch of '${b.name}': empty value`);
+    }
+    const expr = parseExprFrom(tagP.value.rest, ctx);
+    if (!expr.ok) return err(`in branch of '${b.name}': ${expr.error}`);
+    cases.push({ tags: tagP.value.tags, expr: expr.value });
+  }
+  return ok({ name: b.name, expr: { kind: "branches", cases } });
+}
+
 export function parseProgram(src: string): Result<Program, string> {
   const scan = scanLines(src);
   if (!scan.ok) return scan;
@@ -769,29 +852,25 @@ export function parseProgram(src: string): Result<Program, string> {
   const axes: Axis[] = scan.value.axes.map((a) => ({ name: a.name, values: a.values, groups: a.groups }));
   const bindings: Binding[] = [];
   for (const b of scan.value.bindings) {
-    if (b.branches.length === 0) {
-      const expr = parseExprFrom(b.rhs, ctx);
-      if (!expr.ok) return err(`in binding '${b.name}': ${expr.error}`);
-      bindings.push({ name: b.name, expr: expr.value });
-      continue;
+    const pb = parseRawBinding(b, ctx);
+    if (!pb.ok) return pb;
+    bindings.push(pb.value);
+  }
+  const scenarios: Scenario[] = [];
+  for (const sc of scan.value.scenarios) {
+    let target = scenarios.find((s) => s.name === sc.name);
+    if (!target) {
+      target = { name: sc.name, bindings: [] };
+      scenarios.push(target);
     }
-    const cases: BranchCase[] = [];
-    if (b.rhs) {
-      const expr = parseExprFrom(b.rhs, ctx);
-      if (!expr.ok) return err(`in binding '${b.name}': ${expr.error}`);
-      cases.push({ tags: {}, expr: expr.value });
-    }
-    for (const br of b.branches) {
-      const tagP = parseBranchTags(br, ctx);
-      if (!tagP.ok) return err(`in branch of '${b.name}': ${tagP.error}`);
-      if (!tagP.value.rest.trim()) {
-        return err(`in branch of '${b.name}': empty value`);
+    for (const rb of sc.bindings) {
+      if (!ctx.names.has(rb.name)) {
+        return err(`scenario '#${sc.name}' overrides unknown binding '${rb.name}' (scenarios may only override existing bindings)`);
       }
-      const expr = parseExprFrom(tagP.value.rest, ctx);
-      if (!expr.ok) return err(`in branch of '${b.name}': ${expr.error}`);
-      cases.push({ tags: tagP.value.tags, expr: expr.value });
+      const pb = parseRawBinding(rb, ctx);
+      if (!pb.ok) return err(`in scenario '#${sc.name}': ${pb.error}`);
+      target.bindings.push(pb.value);
     }
-    bindings.push({ name: b.name, expr: { kind: "branches", cases } });
   }
   const charts: ChartEntry[] = [];
   for (const ch of scan.value.charts) {
@@ -799,5 +878,5 @@ export function parseProgram(src: string): Result<Program, string> {
     charts.push({ color: ch.color, chart: ch.chart, ref: ch.ref, group: ch.group });
   }
   const chartConfigs: ChartConfig[] = scan.value.chartConfigs.map((c) => ({ name: c.name, kind: c.kind }));
-  return ok({ axes, bindings, charts, chartConfigs });
+  return ok({ axes, bindings, charts, chartConfigs, scenarios });
 }
