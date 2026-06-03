@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { EngineState, ScalarRow } from "./cogsEngine";
 
 type Props = {
@@ -24,6 +24,40 @@ type Props = {
 
 const DEFAULT_CHART_COLOR = "#ffffff";
 
+// Hide inputs from password managers / autofill extensions, which otherwise
+// tag fields and clobber attributes like `placeholder` (e.g. setting it to "null").
+const NO_AUTOFILL = {
+  autoComplete: "off",
+  "data-1p-ignore": true,
+  "data-lpignore": "true",
+  "data-bwignore": true,
+  "data-form-type": "other",
+} as const;
+
+// Some autofill extensions ignore the hints above and still rewrite the
+// `placeholder` attribute (e.g. to "null") on every input. Each input mirrors
+// its legit placeholder in `data-ph`; this observer reverts any other write.
+function useGuardPlaceholders(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    function fix(el: HTMLInputElement) {
+      const want = el.dataset.ph ?? "";
+      if ((el.getAttribute("placeholder") ?? "") === want) return;
+      if (want) el.setAttribute("placeholder", want);
+      else el.removeAttribute("placeholder");
+    }
+    const obs = new MutationObserver((muts) => {
+      for (const m of muts) {
+        if (m.target instanceof HTMLInputElement) fix(m.target);
+      }
+    });
+    obs.observe(root, { subtree: true, attributes: true, attributeFilter: ["placeholder"] });
+    root.querySelectorAll("input").forEach(fix);
+    return () => obs.disconnect();
+  }, [ref]);
+}
+
 function chartForRef(state: EngineState, ref: string): { chart: string; color: string } | null {
   const c = state.program.charts.find((e) => e.ref === ref);
   return c ? { chart: c.chart, color: c.color } : null;
@@ -43,9 +77,11 @@ export function BindingsPane({ state, error, bases, scenarios, scenario, onScena
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropOn, setDropOn] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const paneRef = useRef<HTMLDivElement>(null);
+  useGuardPlaceholders(paneRef);
 
   return (
-    <div className="pane">
+    <div className="pane" ref={paneRef}>
       <div className="pane-header">
         <div className="brand">
           <span className="brand-icon" aria-hidden>⚙️</span>
@@ -218,6 +254,8 @@ function CellRow({ axes, cell, onValueChange }: CellRowProps) {
       <td className="cells-val">
         <input
           className="cell-val-input"
+          {...NO_AUTOFILL}
+          data-ph=""
           type="number"
           value={display}
           onChange={(e) => handleChange(e.target.value)}
@@ -277,6 +315,8 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
         <span className="note-edit-icon">❝</span>
         <input
           className="note-input"
+          {...NO_AUTOFILL}
+          data-ph="note…"
           type="text"
           autoFocus
           placeholder="note…"
@@ -325,6 +365,8 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
       >≡</span>
       <input
         className="name"
+        {...NO_AUTOFILL}
+        data-ph=""
         type="text"
         value={nameValue}
         title={nameValue}
@@ -338,6 +380,8 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
       {row.computed && (
         <input
           className="expr-input"
+          {...NO_AUTOFILL}
+          data-ph=""
           type="text"
           value={rhsValue}
           title={rhsValue}
@@ -358,6 +402,8 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
       ) : (
         <input
           className="val"
+          {...NO_AUTOFILL}
+          data-ph=""
           type="number"
           value={formatDisplay(row.value)}
           disabled={row.computed}
@@ -367,6 +413,8 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
       )}
       <input
         className="unit"
+        {...NO_AUTOFILL}
+        data-ph="-"
         type="text"
         value={unitValue}
         title={row.computed ? `${row.unit} (computed)` : row.unit}
@@ -381,6 +429,8 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
       />
       <input
         className="chart-key"
+        {...NO_AUTOFILL}
+        data-ph="-"
         type="text"
         placeholder="-"
         value={chartValue}
