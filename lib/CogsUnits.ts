@@ -104,14 +104,11 @@ export function negQty(a: Qty): Qty {
   return { value: -a.value, unit: a.unit };
 }
 
-const UNIT_SYMBOL: Record<string, string> = { usd: "$" };
-const sym = (t: string) => UNIT_SYMBOL[t] ?? t;
-
 export function fmtUnit(u: Unit): string {
   if (u.num.length === 0 && u.den.length === 0) return "";
-  const n = u.num.length ? u.num.map(sym).join("·") : "1";
+  const n = u.num.length ? u.num.join("·") : "1";
   if (u.den.length === 0) return n;
-  return `${n}/${u.den.map(sym).join("·")}`;
+  return `${n}/${u.den.join("·")}`;
 }
 
 export function fmtQty(q: Qty): string {

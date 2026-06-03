@@ -12,6 +12,7 @@ export type ScalarRow = {
   display: string;
   computed: boolean;
   rhs: string;
+  comment: string;
   section: string | null;
   axes: string[];
   cells: { at: Record<string, string>; label: string; value: number; unit: string; currency: boolean }[];
@@ -28,10 +29,20 @@ export type EngineState = {
 
 const LITERAL_LINE = /^(\s*)([A-Za-z_][A-Za-z0-9_\- ]*?)\s*=\s*(\$?)(-?(?:\d+(?:\.\d*)?|\.\d+))(.*)$/;
 
+function splitComment(line: string): { code: string; comment: string } {
+  const i = line.indexOf("//");
+  if (i < 0) return { code: line, comment: "" };
+  return { code: line.slice(0, i), comment: line.slice(i + 2).trim() };
+}
+
 function extractRhs(line: string): string {
   const eq = line.indexOf("=");
   if (eq < 0) return "";
-  return line.slice(eq + 1).trim();
+  return splitComment(line.slice(eq + 1)).code.trim();
+}
+
+function extractComment(line: string): string {
+  return splitComment(line).comment;
 }
 
 const SECTION_RE = /^\s*\/\/\s*-{2,}\s*(.+?)\s*-*\s*$/;
@@ -73,7 +84,7 @@ function fallbackRows(source: string): ScalarRow[] {
     const name = m[1].trim().replace(/\s+/g, " ");
     if (seen.has(name)) continue;
     seen.add(name);
-    rows.push({ name, lineIndex: i, baseValue: 0, value: NaN, unit: "", display: "?", computed: true, rhs: m[2], section: sections[i], axes: [], cells: [] });
+    rows.push({ name, lineIndex: i, baseValue: 0, value: NaN, unit: "", display: "?", computed: true, rhs: splitComment(m[2]).code.trim(), comment: extractComment(line), section: sections[i], axes: [], cells: [] });
   }
   return rows;
 }
@@ -100,6 +111,7 @@ export function buildState(source: string, scenario?: string | null): EngineStat
     const lineIndex = findLineIndex(lines, b.name);
     const isLiteral = b.expr.kind === "qty";
     const rhs = lineIndex >= 0 ? extractRhs(lines[lineIndex]) : "";
+    const comment = lineIndex >= 0 ? extractComment(lines[lineIndex]) : "";
     const section = lineIndex >= 0 ? sections[lineIndex] : null;
     const q = scalarQty(v);
     if (q !== null) {
@@ -113,6 +125,7 @@ export function buildState(source: string, scenario?: string | null): EngineStat
         display: q.value.toString(),
         computed: !isLiteral,
         rhs,
+        comment,
         section,
         axes: [],
         cells: [],
@@ -136,6 +149,7 @@ export function buildState(source: string, scenario?: string | null): EngineStat
       display: "",
       computed: true,
       rhs,
+      comment,
       section,
       axes: v.axes,
       cells: cellRows,
@@ -271,7 +285,19 @@ export function setRhs(source: string, lineIndex: number, newRhs: string): strin
   const line = lines[lineIndex];
   const eq = line.indexOf("=");
   if (eq < 0) return source;
-  lines[lineIndex] = `${line.slice(0, eq + 1)} ${newRhs}`;
+  const { comment } = splitComment(line);
+  const base = `${line.slice(0, eq + 1)} ${newRhs.trim()}`;
+  lines[lineIndex] = comment ? `${base} // ${comment}` : base;
+  return lines.join("\n");
+}
+
+export function setComment(source: string, lineIndex: number, comment: string): string {
+  const lines = source.split("\n");
+  const line = lines[lineIndex];
+  if (line === undefined) return source;
+  const code = splitComment(line).code.trimEnd();
+  const trimmed = comment.trim();
+  lines[lineIndex] = trimmed ? `${code} // ${trimmed}` : code;
   return lines.join("\n");
 }
 
@@ -327,11 +353,12 @@ const LITERAL_UNIT_LINE = /^(\s*[A-Za-z_][A-Za-z0-9_\- ]*?\s*=\s*\$?-?\d+(?:\.\d
 
 export function setUnit(source: string, lineIndex: number, newUnit: string): string {
   const lines = source.split("\n");
-  const line = lines[lineIndex];
-  const m = line.match(LITERAL_UNIT_LINE);
+  const { code, comment } = splitComment(lines[lineIndex]);
+  const m = code.match(LITERAL_UNIT_LINE);
   if (!m) return source;
   const trimmedUnit = newUnit.trim();
-  lines[lineIndex] = trimmedUnit ? `${m[1]} ${trimmedUnit}` : m[1];
+  const base = trimmedUnit ? `${m[1]} ${trimmedUnit}` : m[1];
+  lines[lineIndex] = comment ? `${base} // ${comment}` : base;
   return lines.join("\n");
 }
 

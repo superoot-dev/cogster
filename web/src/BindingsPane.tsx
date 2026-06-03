@@ -12,6 +12,7 @@ type Props = {
   onRhsChange: (lineIndex: number, rhs: string) => void;
   onNameChange: (oldName: string, newName: string) => void;
   onUnitChange: (lineIndex: number, unit: string) => void;
+  onCommentChange: (lineIndex: number, comment: string) => void;
   onCellValueChange: (lineIndex: number, assignment: Record<string, string>, value: number, currency: boolean) => void;
   onColorChange: (ref: string, chart: string, color: string) => void;
   onChartChange: (ref: string, chartKey: string, color: string) => void;
@@ -38,7 +39,7 @@ function groupRows(rows: ScalarRow[]): { section: string | null; rows: ScalarRow
   return groups;
 }
 
-export function BindingsPane({ state, error, bases, scenarios, scenario, onScenario, onValueChange, onRhsChange, onNameChange, onUnitChange, onCellValueChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
+export function BindingsPane({ state, error, bases, scenarios, scenario, onScenario, onValueChange, onRhsChange, onNameChange, onUnitChange, onCommentChange, onCellValueChange, onColorChange, onChartChange, onReorder, onDelete, onAdd, onDownload }: Props) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropOn, setDropOn] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -86,7 +87,6 @@ export function BindingsPane({ state, error, bases, scenarios, scenario, onScena
                 >
                   <span className="section-caret">{isCollapsed ? "▸" : "▾"}</span>
                   <span className="section-label">{g.section}</span>
-                  <span className="section-count">{g.rows.length}</span>
                 </button>
               )}
               {!isCollapsed && g.rows.map((row) => (
@@ -110,6 +110,7 @@ export function BindingsPane({ state, error, bases, scenarios, scenario, onScena
                   onRhsChange={(s) => onRhsChange(row.lineIndex, s)}
                   onNameChange={(s) => onNameChange(row.name, s)}
                   onUnitChange={(s) => onUnitChange(row.lineIndex, s)}
+                  onCommentChange={(c) => onCommentChange(row.lineIndex, c)}
                   onCellValueChange={(at, v, c) => onCellValueChange(row.lineIndex, at, v, c)}
                   onColorChange={(c) => {
                     const ch = chartForRef(state, row.name);
@@ -144,6 +145,7 @@ type RowProps = {
   onRhsChange: (s: string) => void;
   onNameChange: (s: string) => void;
   onUnitChange: (s: string) => void;
+  onCommentChange: (s: string) => void;
   onCellValueChange: (at: Record<string, string>, value: number, currency: boolean) => void;
   onColorChange: (c: string) => void;
   onChartChange: (key: string) => void;
@@ -231,7 +233,7 @@ function CellRow({ axes, cell, onValueChange }: CellRowProps) {
   );
 }
 
-function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEnd, onDragOver, onValueChange, onRhsChange, onNameChange, onUnitChange, onCellValueChange, onColorChange, onChartChange, onDelete }: RowProps) {
+function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEnd, onDragOver, onValueChange, onRhsChange, onNameChange, onUnitChange, onCommentChange, onCellValueChange, onColorChange, onChartChange, onDelete }: RowProps) {
   const max = Math.max(base * 4, 1);
   const step = max < 10 ? 0.01 : max < 1000 ? 0.5 : max / 1000;
   const [dragArmed, setDragArmed] = useState(false);
@@ -262,9 +264,32 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
     if (chartDraft !== null && chartDraft !== current) onChartChange(chartDraft);
     setChartDraft(null);
   }
+  const [commentDraft, setCommentDraft] = useState<string | null>(null);
+  function commitComment() {
+    if (commentDraft !== null && commentDraft.trim() !== row.comment) onCommentChange(commentDraft);
+    setCommentDraft(null);
+  }
   return (
     <>
     {renderRow()}
+    {commentDraft !== null && (
+      <div className="note-edit">
+        <span className="note-edit-icon">❝</span>
+        <input
+          className="note-input"
+          type="text"
+          autoFocus
+          placeholder="note…"
+          value={commentDraft}
+          onChange={(e) => setCommentDraft(e.target.value)}
+          onBlur={commitComment}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") { setCommentDraft(null); (e.target as HTMLInputElement).blur(); }
+          }}
+        />
+      </div>
+    )}
     {tagged && expanded && (
       <div className="cells-panel">
         <table className="cells-table">
@@ -375,6 +400,11 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
         onChange={(e) => onColorChange(e.target.value)}
         title={chart ? "color" : "set chart key first"}
       />
+      <button
+        className={`note ${row.comment ? "has-note" : ""}`}
+        onClick={() => setCommentDraft((d) => (d === null ? row.comment : null))}
+        title={row.comment || "add note"}
+      >{row.comment ? "❝" : "+"}</button>
       <button className="del" onClick={onDelete} title="delete">×</button>
     </div>
   );
