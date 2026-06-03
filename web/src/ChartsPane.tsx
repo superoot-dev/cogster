@@ -67,20 +67,67 @@ function ChartCard({ chart }: { chart: RenderedChart }) {
 
 function SeriesTable({ series, showShare }: { series: RenderedSeries[]; showShare: boolean }) {
   const total = showShare ? series.reduce((a, s) => a + (Number.isFinite(s.value) ? s.value : 0), 0) : 0;
+  const sharePct = (v: number) => (total > 0 ? `${((v / total) * 100).toFixed(1)}%` : "");
+
+  // Cluster pie rows by group; render a subtotal header per multi-member group
+  // with its members indented beneath. Single-member groups stay flat.
+  const order: string[] = [];
+  const byGroup = new Map<string, RenderedSeries[]>();
+  for (const s of series) {
+    if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
+    byGroup.get(s.group)!.push(s);
+  }
+  const grouped = showShare && order.some((g) => byGroup.get(g)!.length > 1);
+
   return (
     <table className="series-table">
       <tbody>
-        {series.map((s, i) => (
+        {!grouped && series.map((s, i) => (
           <tr key={i}>
             <td className="swatch-cell"><span className="swatch" style={{ background: s.color }} /></td>
             <td className="label-cell" title={s.label}>{s.label}</td>
             <td className="val-cell">{formatValue(s.value)}</td>
             <td className="unit-cell">{s.unit}</td>
             {showShare && (
-              <td className="share-cell">{total > 0 ? `${((s.value / total) * 100).toFixed(1)}%` : ""}</td>
+              <td className="share-cell">{sharePct(s.value)}</td>
             )}
           </tr>
         ))}
+        {grouped && order.flatMap((g) => {
+          const members = byGroup.get(g)!;
+          const sub = members.reduce((a, s) => a + (Number.isFinite(s.value) ? s.value : 0), 0);
+          if (members.length === 1) {
+            const s = members[0];
+            return [(
+              <tr key={g}>
+                <td className="swatch-cell"><span className="swatch" style={{ background: s.color }} /></td>
+                <td className="label-cell" title={s.label}>{s.label}</td>
+                <td className="val-cell">{formatValue(s.value)}</td>
+                <td className="unit-cell">{s.unit}</td>
+                <td className="share-cell">{sharePct(s.value)}</td>
+              </tr>
+            )];
+          }
+          const header = (
+            <tr key={g} className="group-row">
+              <td className="swatch-cell" />
+              <td className="label-cell" style={{ fontWeight: 600 }}>{g}</td>
+              <td className="val-cell" style={{ fontWeight: 600 }}>{formatValue(sub)}</td>
+              <td className="unit-cell">{members[0].unit}</td>
+              <td className="share-cell" style={{ fontWeight: 600 }}>{sharePct(sub)}</td>
+            </tr>
+          );
+          const rows = members.map((s, i) => (
+            <tr key={`${g}-${i}`}>
+              <td className="swatch-cell"><span className="swatch" style={{ background: s.color }} /></td>
+              <td className="label-cell" title={s.label} style={{ paddingLeft: 16 }}>{s.label}</td>
+              <td className="val-cell">{formatValue(s.value)}</td>
+              <td className="unit-cell">{s.unit}</td>
+              <td className="share-cell">{sharePct(s.value)}</td>
+            </tr>
+          ));
+          return [header, ...rows];
+        })}
         {showShare && series.length > 1 && (
           <tr className="total-row">
             <td className="swatch-cell" />

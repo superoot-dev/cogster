@@ -31,3 +31,17 @@ export function resolveColor(raw: string): string | null {
   const named = NAMED[v.toLowerCase()];
   return named ?? null;
 }
+
+// Mix a #rrggbb color toward black (t<0) or white (t>0); |t| in [0,1].
+export function shade(hex: string, t: number): string {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return hex;
+  const target = t < 0 ? 0 : 255;
+  const amt = Math.min(1, Math.abs(t));
+  const mix = (c: number) => Math.round(c + (target - c) * amt);
+  const hx = (n: number) => n.toString(16).padStart(2, "0");
+  const r = mix(parseInt(h.slice(0, 2), 16));
+  const g = mix(parseInt(h.slice(2, 4), 16));
+  const b = mix(parseInt(h.slice(4, 6), 16));
+  return `#${hx(r)}${hx(g)}${hx(b)}`;
+}
