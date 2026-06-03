@@ -23,6 +23,49 @@ function formatValue(n: number): string {
   return Number(n.toPrecision(6)).toString();
 }
 
+type TipItem = { name?: string; value?: number; color?: string };
+
+// Custom bar tooltip: lists each stacked segment with its share of the full bar,
+// then (when a `margin` segment is present) a COGS / Margin / Price footer — the
+// full bar length is the SRP, so this reads off the unit economics on hover.
+function BarTooltip({ active, payload, unit }: { active?: boolean; payload?: TipItem[]; unit?: string }) {
+  if (!active || !payload || payload.length === 0) return null;
+  const rows = payload.filter((p) => Number.isFinite(p.value));
+  if (rows.length === 0) return null;
+  const total = rows.reduce((a, p) => a + (p.value as number), 0);
+  const marginRow = rows.find((p) => /margin/i.test(p.name ?? ""));
+  const margin = marginRow ? (marginRow.value as number) : 0;
+  const cogs = total - margin;
+  const pct = (v: number) => (total > 0 ? `${((v / total) * 100).toFixed(1)}%` : "");
+  const segs = rows.filter((p) => p !== marginRow);
+  const foot = (label: string, v: number, bold: boolean) => (
+    <div style={{ display: "flex", gap: 8, fontWeight: bold ? 600 : 400 }}>
+      <span style={{ flex: 1 }}>{label}</span>
+      <span>{formatValue(v)}</span>
+      <span style={{ width: 46, textAlign: "right", color: "var(--muted)" }}>{pct(v)}</span>
+    </div>
+  );
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,.08)", minWidth: 210 }}>
+      {segs.map((p, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", lineHeight: 1.7 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: p.color, flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{p.name}</span>
+          <span>{formatValue(p.value as number)}</span>
+          <span style={{ width: 46, textAlign: "right", color: "var(--muted)" }}>{pct(p.value as number)}</span>
+        </div>
+      ))}
+      {marginRow && (
+        <div style={{ borderTop: "1px solid #e5e7eb", marginTop: 6, paddingTop: 6, display: "grid", gap: 2 }}>
+          {foot("COGS", cogs, true)}
+          {foot("Margin", margin, false)}
+          {foot(`Price ${unit ?? ""}`.trim(), total, true)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChartCard({ chart }: { chart: RenderedChart }) {
   const unit = chart.series[0]?.unit ?? "";
   const data = chart.series.map((s) => ({ name: s.label, value: s.value, color: s.color, unit: s.unit }));
@@ -52,7 +95,7 @@ function ChartCard({ chart }: { chart: RenderedChart }) {
           <BarChart data={stackRows} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
             <XAxis type="number" hide />
             <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v, n) => [`${formatValue(Number(v))} ${unit}`, n]} />
+            <Tooltip content={<BarTooltip unit={unit} />} cursor={{ fill: "rgba(0,0,0,.04)" }} />
             {chart.series.map((s, i) => (
               <Bar key={i} dataKey={`v${i}`} name={s.label} stackId="a" fill={s.color}
                 radius={grouped ? undefined : [0, 4, 4, 0]} isAnimationActive={false} />
