@@ -55,23 +55,23 @@ html, body, #root {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .brand-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--text);
 }
 
 .brand-icon {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .toolbar {
@@ -81,10 +81,11 @@ html, body, #root {
 
 .btn {
   font: inherit;
+  font-size: 11px;
   border: 1px solid var(--border);
   background: white;
-  border-radius: 6px;
-  padding: 4px 10px;
+  border-radius: 5px;
+  padding: 3px 8px;
   cursor: pointer;
 }
 
@@ -319,8 +320,8 @@ html, body, #root {
 }
 
 .chart-card h3 {
-  margin: 0 0 6px;
-  font-size: 13px;
+  margin: 0 0 4px;
+  font-size: 11px;
 }
 
 .series-table {

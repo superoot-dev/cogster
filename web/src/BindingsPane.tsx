@@ -452,7 +452,11 @@ function Row({ row, base, chart, isDragging, isDropTarget, onDragStart, onDragEn
       />
       <button
         className={`note ${row.comment ? "has-note" : ""}`}
-        onClick={() => setCommentDraft((d) => (d === null ? row.comment : null))}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          if (commentDraft !== null) commitComment();
+          else setCommentDraft(row.comment);
+        }}
         title={row.comment || "add note"}
       >{row.comment ? "❝" : "+"}</button>
       <button className="del" onClick={onDelete} title="delete">×</button>
