@@ -122,9 +122,9 @@ html, body, #root {
 .row {
   display: grid;
   grid-template-columns: 16px minmax(0, 2fr) minmax(0, 1fr) 72px 56px 48px 18px 18px;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
-  padding: 4px 4px;
+  padding: 1px 4px;
   border-bottom: 1px solid var(--border);
   min-width: 0;
 }
@@ -140,11 +140,12 @@ html, body, #root {
 
 .row .name {
   font: inherit;
+  font-size: 12px;
   font-weight: 500;
   width: 100%;
   border: 1px solid transparent;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 1px 6px;
   background: transparent;
   color: var(--text);
   overflow: hidden;
@@ -176,7 +177,7 @@ html, body, #root {
   min-width: 0;
   border: 1px solid transparent;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 1px 6px;
   background: transparent;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -192,8 +193,9 @@ html, body, #root {
   text-align: right;
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 2px 4px;
+  padding: 1px 4px;
   font: inherit;
+  font-size: 12px;
 }
 
 .row .val:disabled {
@@ -212,7 +214,7 @@ html, body, #root {
   width: 100%;
   border: 1px solid transparent;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 1px 6px;
   background: transparent;
   overflow: hidden;
   text-overflow: ellipsis;
