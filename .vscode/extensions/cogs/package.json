@@ -20,6 +20,12 @@
         "language": "cogs",
         "scopeName": "source.cogs",
         "path": "./syntaxes/cogs.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.cogs.codeblock",
+        "path": "./syntaxes/cogs.markdown.json",
+        "injectTo": ["text.html.markdown"],
+        "embeddedLanguages": { "meta.embedded.block.cogs": "cogs" }
       }
     ]
   }

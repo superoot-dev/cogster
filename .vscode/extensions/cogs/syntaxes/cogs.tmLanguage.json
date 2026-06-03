@@ -4,12 +4,22 @@
   "scopeName": "source.cogs",
   "fileTypes": ["cogs"],
   "patterns": [
+    { "include": "#section" },
     { "include": "#comment" },
     { "include": "#axis-decl" },
+    { "include": "#group-decl" },
+    { "include": "#chart-decl" },
+    { "include": "#scenario" },
+    { "include": "#scenario-end" },
+    { "include": "#chart-entry" },
     { "include": "#binding" },
     { "include": "#expression" }
   ],
   "repository": {
+    "section": {
+      "name": "markup.heading.section.cogs",
+      "match": "^\\s*//\\s*-{2,}.*$"
+    },
     "comment": {
       "name": "comment.line.double-slash.cogs",
       "match": "//.*$"
@@ -20,6 +30,44 @@
         "1": { "name": "keyword.declaration.axis.cogs" },
         "2": { "name": "entity.name.type.axis.cogs" },
         "3": { "name": "keyword.operator.assignment.cogs" }
+      }
+    },
+    "group-decl": {
+      "match": "^\\s*(group)\\s+(:[A-Za-z0-9][A-Za-z0-9_-]*)\\s*(=)",
+      "captures": {
+        "1": { "name": "keyword.declaration.group.cogs" },
+        "2": { "name": "entity.name.tag.cogs" },
+        "3": { "name": "keyword.operator.assignment.cogs" }
+      }
+    },
+    "chart-decl": {
+      "match": "^\\s*(chart)\\s+([A-Za-z_][A-Za-z0-9_-]*(?:\\s+[A-Za-z_][A-Za-z0-9_-]*)*?)\\s*(?:(=)\\s*(pie|bar)\\b)?\\s*$",
+      "captures": {
+        "1": { "name": "keyword.declaration.chart.cogs" },
+        "2": { "name": "entity.name.section.chart.cogs" },
+        "3": { "name": "keyword.operator.assignment.cogs" },
+        "4": { "name": "support.type.chart-kind.cogs" }
+      }
+    },
+    "scenario": {
+      "match": "^\\s*(#)([A-Za-z_][A-Za-z0-9_-]*)\\b(?=[^.\\n]*(?:\\{|=))(\\s*\\{)?",
+      "captures": {
+        "1": { "name": "punctuation.definition.scenario.cogs" },
+        "2": { "name": "entity.name.section.scenario.cogs" },
+        "3": { "name": "punctuation.section.block.begin.cogs" }
+      }
+    },
+    "scenario-end": {
+      "name": "punctuation.section.block.end.cogs",
+      "match": "^\\s*\\}\\s*$"
+    },
+    "chart-entry": {
+      "match": "^\\s*(#)(auto|[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[A-Za-z][A-Za-z0-9]*)(?:(\\.)([A-Za-z0-9_-]+))?\\b",
+      "captures": {
+        "1": { "name": "punctuation.definition.chart-entry.cogs" },
+        "2": { "name": "constant.other.color.cogs" },
+        "3": { "name": "punctuation.accessor.cogs" },
+        "4": { "name": "entity.name.section.chart.cogs" }
       }
     },
     "binding": {
@@ -39,6 +87,7 @@
         { "include": "#number-unit" },
         { "include": "#number" },
         { "include": "#function-call" },
+        { "include": "#tier" },
         { "include": "#operator" }
       ]
     },
@@ -75,7 +124,7 @@
       "match": "\\$[0-9]+(?:\\.[0-9]+)?"
     },
     "number-unit": {
-      "match": "\\b([0-9]+(?:\\.[0-9]+)?)\\s+([A-Za-z]+)\\b",
+      "match": "\\b([0-9]+(?:\\.[0-9]+)?)\\s+([A-Za-z][A-Za-z_]*)\\b",
       "captures": {
         "1": { "name": "constant.numeric.cogs" },
         "2": { "name": "support.type.unit.cogs" }
@@ -91,9 +140,13 @@
         "1": { "name": "entity.name.function.cogs" }
       }
     },
+    "tier": {
+      "name": "keyword.operator.tier.cogs",
+      "match": "@"
+    },
     "operator": {
       "name": "keyword.operator.cogs",
-      "match": "[+\\-*/@=]"
+      "match": "[+\\-*/=]"
     }
   }
 }
